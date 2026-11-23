@@ -3,6 +3,8 @@
 export interface CsvRow {
   key: string;
   value: string;
+  /** Export only: adds a Secret column so a secret is never mistaken for an empty value. */
+  isSecret?: boolean;
 }
 
 export interface CsvParseResult {
@@ -83,6 +85,7 @@ export function parseKeyValueCsv(text: string): CsvParseResult {
   }
 
   let start = 0;
+  let secretCol = -1;
   const first = records[0];
   if (
     first &&
@@ -90,6 +93,7 @@ export function parseKeyValueCsv(text: string): CsvParseResult {
     (first[1]?.trim().toLowerCase() === 'value' || first.length === 1)
   ) {
     start = 1;
+    secretCol = first.findIndex((c, i) => i > 1 && c.trim().toLowerCase() === 'secret');
   }
 
   const map = new Map<string, string>();
@@ -99,6 +103,14 @@ export function parseKeyValueCsv(text: string): CsvParseResult {
     const value = rec[1] ?? '';
     if (!key) {
       warnings.push(`Row ${r + 1}: missing key - skipped.`);
+      continue;
+    }
+    // A secret exported by ToolDock has no value. Importing it would wipe the real secret.
+    const flagged = secretCol > 0 && /^(yes|true|1)$/i.test((rec[secretCol] ?? '').trim());
+    if (flagged && value === '') {
+      warnings.push(
+        `Row ${r + 1}: "${key}" is a secret with no value - skipped so the existing secret is kept.`,
+      );
       continue;
     }
     if (map.has(key)) {
@@ -119,11 +131,34 @@ function escapeField(field: string): string {
   return field;
 }
 
-/** Serialize rows to a `Key,Value` CSV (with header). */
+/**
+ * Serialize rows to a `Key,Value` CSV (with header). When any row is secret a
+ * third `Secret` column is added (yes / blank) and secret values are left empty,
+ * so a secret is never confused with an empty value. CSV Import skips such rows.
+ */
 export function toKeyValueCsv(rows: CsvRow[]): string {
-  const lines = ['Key,Value'];
-  for (const { key, value } of rows) {
-    lines.push(`${escapeField(key)},${escapeField(value)}`);
+  const withSecret = rows.some((r) => r.isSecret);
+  const lines = [withSecret ? 'Key,Value,Secret' : 'Key,Value'];
+  for (const { key, value, isSecret } of rows) {
+    const v = isSecret ? '' : value;
+    lines.push(
+      withSecret
+        ? `${escapeField(key)},${escapeField(v)},${isSecret ? 'yes' : ''}`
+        : `${escapeField(key)},${escapeField(v)}`,
+    );
   }
   return lines.join('\n');
+}
+
+/**
+ * Serialize rows as KEY=value lines. A secret is written as a commented-out
+ * line, so the file never hands an empty string to something that reads it as
+ * the real value, and a reader can still see the key exists.
+ */
+export function toKeyValueTxt(rows: CsvRow[]): string {
+  return rows
+    .map(({ key, value, isSecret }) =>
+      isSecret ? `# ${key}=  (secret: value can't be read from Azure DevOps)` : `${key}=${value}`,
+    )
+    .join('\n');
 }

@@ -18,9 +18,6 @@ import { variableCount, variableEntries } from '@/lib/utils/variables';
 import { useVariableGroups } from '@/lib/hooks/useVariableGroups';
 import { useSessionStore } from '@/store/sessionStore';
 
-/** Secret values cannot be read back from ADO; represented as a placeholder. */
-const SECRET_PLACEHOLDER = '';
-
 /** Tool - export every (or a chosen subset of) a project's variable groups into one multi-sheet XLSX workbook. */
 export function ExportAllGroups() {
   const organization = useSessionStore((s) => s.organization);
@@ -96,7 +93,8 @@ export function ExportAllGroups() {
           name: g.name,
           rows: variableEntries(g).map((e) => ({
             key: e.key,
-            value: e.value ?? SECRET_PLACEHOLDER,
+            value: e.value ?? '',
+            isSecret: e.isSecret,
           })),
         })),
       );
@@ -184,7 +182,8 @@ export function ExportAllGroups() {
 
             {hasSecrets && (
               <Callout variant="info">
-                Secret values can’t be read from Azure DevOps, so they are exported empty.
+                Secret values can’t be read from Azure DevOps. They’re exported as secret with no
+                value, so they can’t be mistaken for empty ones.
               </Callout>
             )}
 

@@ -31,7 +31,10 @@ export function indexedSheetName(index: number, total: number, label: string): s
 
 export interface XlsxRow {
   key: string;
+  /** Ignored when isSecret is true. */
   value: string;
+  /** Secret values can't be read from Azure DevOps; written as [secret], never as [empty]. */
+  isSecret?: boolean;
 }
 
 const NAVY: ExcelJS.Fill = {
@@ -51,8 +54,13 @@ const ALL_BORDERS: Partial<ExcelJS.Borders> = {
 
 const GRAY_ITALIC: Partial<ExcelJS.Font> = { italic: true, color: { argb: 'FF999999' }, size: 10 };
 
-/** Apply a placeholder value ([secret] or [empty]) with gray italic styling. */
-function setPlaceholder(cell: ExcelJS.Cell, label: '[secret]' | '[empty]') {
+/**
+ * Placeholder for a value that can't be shown, in gray italic:
+ *  [secret]  - the variable exists but is secret, so Azure DevOps won't return its value
+ *  [empty]   - the variable exists and its value is an empty string
+ *  [not set] - the variable doesn't exist in this group
+ */
+function setPlaceholder(cell: ExcelJS.Cell, label: '[secret]' | '[empty]' | '[not set]') {
   cell.value = label;
   cell.font = GRAY_ITALIC;
 }
@@ -87,7 +95,9 @@ function formatKeyValueSheet(ws: ExcelJS.Worksheet, fullName: string, rows: Xlsx
     const kCell = ws.getCell(rowIdx, 1);
     const vCell = ws.getCell(rowIdx, 2);
     kCell.value = r.key;
-    if (r.value === '') {
+    if (r.isSecret) {
+      setPlaceholder(vCell, '[secret]');
+    } else if (r.value === '') {
       setPlaceholder(vCell, '[empty]');
     } else {
       vCell.value = r.value;
@@ -316,14 +326,14 @@ export async function exportDiffXlsx(
     applyDiffCellBase(keyCell, fill);
 
     const leftCell = ws.getCell(rowIdx, 2);
-    if (r.status === 'right-only') setPlaceholder(leftCell, '[empty]');
+    if (r.status === 'right-only') setPlaceholder(leftCell, '[not set]');
     else if (r.leftSecret) setPlaceholder(leftCell, '[secret]');
     else if (!r.leftValue) setPlaceholder(leftCell, '[empty]');
     else leftCell.value = r.leftValue;
     applyDiffCellBase(leftCell, fill);
 
     const rightCell = ws.getCell(rowIdx, 3);
-    if (r.status === 'left-only') setPlaceholder(rightCell, '[empty]');
+    if (r.status === 'left-only') setPlaceholder(rightCell, '[not set]');
     else if (r.rightSecret) setPlaceholder(rightCell, '[secret]');
     else if (!r.rightValue) setPlaceholder(rightCell, '[empty]');
     else rightCell.value = r.rightValue;
@@ -408,7 +418,7 @@ export async function exportMultiGroupXlsx(
     row.cells.forEach((cell, ci) => {
       const xlCell = ws.getCell(rowIdx, ci + 2);
       if (cell.status === 'missing') {
-        setPlaceholder(xlCell, '[empty]');
+        setPlaceholder(xlCell, '[not set]');
       } else if (cell.status === 'secret') {
         setPlaceholder(xlCell, '[secret]');
       } else if (!cell.value) {

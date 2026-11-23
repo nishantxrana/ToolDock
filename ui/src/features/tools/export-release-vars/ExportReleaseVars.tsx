@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Combobox } from '@/components/ui/combobox';
-import { toKeyValueCsv } from '@/lib/utils/csv';
+import { toKeyValueCsv, toKeyValueTxt } from '@/lib/utils/csv';
 import { safeFilename } from '@/lib/utils/download';
 import { exportKeyValueXlsx } from '@/lib/utils/xlsx';
 import { getReleaseDefinition } from '@/lib/api/releaseDefinitions';
@@ -46,7 +46,6 @@ const FORMATS: { id: Format; label: string; mime: string; ext: string }[] = [
   },
 ];
 
-const SECRET_PLACEHOLDER = '';
 const DEFINITION_SCOPE = '__definition__';
 
 interface KV {
@@ -65,14 +64,15 @@ function extractVars(def: ReleaseDefinition, scopeId: string): KV[] {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, v]) => ({
       key,
-      value: v.isSecret ? SECRET_PLACEHOLDER : (v.value ?? ''),
+      value: v.isSecret ? '' : (v.value ?? ''),
       isSecret: v.isSecret ?? false,
     }));
 }
 
 function buildOutput(vars: KV[], format: Exclude<Format, 'xlsx'>, scopeLabel: string): string {
-  if (format === 'csv') return toKeyValueCsv(vars.map((v) => ({ key: v.key, value: v.value })));
-  if (format === 'txt') return vars.map((v) => `${v.key}=${v.value}`).join('\n');
+  // KV already carries isSecret, so CSV gets its Secret column and TXT comments secrets out.
+  if (format === 'csv') return toKeyValueCsv(vars);
+  if (format === 'txt') return toKeyValueTxt(vars);
   // JSON - ADO-compatible variables object, ready to paste into a new variable group
   const variables: Record<string, { value: string; isSecret?: boolean }> = {};
   for (const v of vars) {
@@ -161,12 +161,7 @@ export function ExportReleaseVars() {
     if (!def) return;
     setXlsxExporting(true);
     try {
-      await exportKeyValueXlsx(
-        `${exportFilename}.xlsx`,
-        scopeLabel,
-        vars.map((v) => ({ key: v.key, value: v.value })),
-        { titleRow: false },
-      );
+      await exportKeyValueXlsx(`${exportFilename}.xlsx`, scopeLabel, vars, { titleRow: false });
     } catch (err) {
       toast.error('XLSX export failed', {
         description: err instanceof Error ? err.message : 'Unknown error',
@@ -258,7 +253,8 @@ export function ExportReleaseVars() {
           <>
             {hasSecrets && (
               <Callout variant="info">
-                Secret values can’t be read from Azure DevOps, so they are exported empty.
+                Secret values can’t be read from Azure DevOps. They’re exported as secret with no
+                value, so they can’t be mistaken for empty ones.
               </Callout>
             )}
 

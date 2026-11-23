@@ -10,7 +10,7 @@ import { VariableGroupPicker } from '@/components/common/VariableGroupPicker';
 import { RequireProject } from '@/components/common/RequireProject';
 import { FormatToggle } from '@/components/common/FormatToggle';
 import { Callout } from '@/components/common/Callout';
-import { toKeyValueCsv } from '@/lib/utils/csv';
+import { toKeyValueCsv, toKeyValueTxt } from '@/lib/utils/csv';
 import { safeFilename } from '@/lib/utils/download';
 import { exportKeyValueXlsx } from '@/lib/utils/xlsx';
 import { variableCount, variableEntries } from '@/lib/utils/variables';
@@ -32,26 +32,23 @@ const FORMATS: { id: Format; label: string; mime: string; ext: string }[] = [
   },
 ];
 
-/** Secret values cannot be read back from ADO; represented as a placeholder. */
-const SECRET_PLACEHOLDER = '';
-
 /** Text formats only - xlsx is binary and built separately. */
 function buildOutput(group: VariableGroup, format: Exclude<Format, 'xlsx'>): string {
   const entries = variableEntries(group);
   if (format === 'csv') {
     return toKeyValueCsv(
-      entries.map((e) => ({ key: e.key, value: e.value ?? SECRET_PLACEHOLDER })),
+      entries.map((e) => ({ key: e.key, value: e.value ?? '', isSecret: e.isSecret })),
     );
   }
   if (format === 'txt') {
-    return entries.map((e) => `${e.key}=${e.value ?? SECRET_PLACEHOLDER}`).join('\n');
+    return toKeyValueTxt(
+      entries.map((e) => ({ key: e.key, value: e.value ?? '', isSecret: e.isSecret })),
+    );
   }
   // JSON - Azure DevOps compatible `variables` structure.
   const variables: Record<string, { value: string; isSecret?: boolean }> = {};
   for (const e of entries) {
-    variables[e.key] = e.isSecret
-      ? { value: SECRET_PLACEHOLDER, isSecret: true }
-      : { value: e.value ?? '' };
+    variables[e.key] = e.isSecret ? { value: '', isSecret: true } : { value: e.value ?? '' };
   }
   return JSON.stringify({ name: group.name, type: group.type, variables }, null, 2);
 }
@@ -85,7 +82,7 @@ export function ExportGroup() {
       await exportKeyValueXlsx(
         `${exportFilename}.xlsx`,
         group.name,
-        entries.map((e) => ({ key: e.key, value: e.value ?? SECRET_PLACEHOLDER })),
+        entries.map((e) => ({ key: e.key, value: e.value ?? '', isSecret: e.isSecret })),
       );
     } catch (err) {
       toast.error('XLSX export failed', {
@@ -114,7 +111,8 @@ export function ExportGroup() {
           <>
             {hasSecrets && (
               <Callout variant="info">
-                Secret values can’t be read from Azure DevOps, so they are exported empty.
+                Secret values can’t be read from Azure DevOps. They’re exported as secret with no
+                value, so they can’t be mistaken for empty ones.
               </Callout>
             )}
             {format === 'xlsx' ? (
