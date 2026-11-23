@@ -8,65 +8,62 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { SearchBox } from '@/components/common/SearchBox';
+import { FilterChip } from '@/components/common/FilterChip';
+import type { Tone } from '@/lib/utils/tone';
+import { ValueCell } from '@/components/common/ValueCell';
 import { cn } from '@/lib/utils/cn';
 import type { ImportRow, ImportStatus } from './importDiff';
 
-const STATUS_META: Record<ImportStatus, { label: string; variant: BadgeProps['variant'] }> = {
-  overwrite: { label: 'Overwrite', variant: 'warning' },
-  new: { label: 'New', variant: 'success' },
-  same: { label: 'Same', variant: 'secondary' },
+const STATUS_META: Record<
+  ImportStatus,
+  { label: string; chip: string; variant: BadgeProps['variant']; tone: Tone }
+> = {
+  overwrite: { label: 'Overwrite', chip: 'overwrite', variant: 'warning', tone: 'warning' },
+  new: { label: 'New', chip: 'new', variant: 'success', tone: 'success' },
+  same: { label: 'Unchanged', chip: 'unchanged', variant: 'secondary', tone: 'neutral' },
 };
-
-function displayCurrent(row: ImportRow): string {
-  if (row.currentIsSecret) return '(secret)';
-  if (row.current === null) return '-';
-  if (row.current === '') return '(empty)';
-  return row.current;
-}
 
 interface ImportPreviewTableProps {
   rows: ImportRow[];
-  /** When true, "same" rows are hidden. Default false. */
-  hideSame?: boolean;
-  /** When set, only rows matching this status are shown. */
-  statusFilter?: ImportStatus | 'all';
-  /** Optional keyword filter applied to key names. */
+  /** Only these statuses are shown. Empty = all. */
+  statuses?: Set<ImportStatus>;
   search?: string;
+  className?: string;
 }
 
-/** Preview table showing per-key New / Same / Overwrite status. */
+/** Per-key preview: current value, incoming value, and what will happen. */
 export function ImportPreviewTable({
   rows,
-  hideSame = false,
-  statusFilter = 'all',
+  statuses,
   search = '',
+  className,
 }: ImportPreviewTableProps) {
   const visible = useMemo(() => {
-    return rows.filter((r) => {
-      if (hideSame && r.status === 'same') return false;
-      if (statusFilter !== 'all' && r.status !== statusFilter) return false;
-      if (search && !r.key.toLowerCase().includes(search.toLowerCase())) return false;
-      return true;
-    });
-  }, [rows, hideSame, statusFilter, search]);
+    const q = search.trim().toLowerCase();
+    return rows.filter(
+      (r) =>
+        (!statuses || statuses.size === 0 || statuses.has(r.status)) &&
+        (!q || r.key.toLowerCase().includes(q)),
+    );
+  }, [rows, statuses, search]);
 
   return (
-    <div className="max-h-[420px] overflow-auto scrollbar-thin rounded-md border">
+    <div className={cn('max-h-[440px] overflow-auto rounded-md border scrollbar-thin', className)}>
       <Table>
-        <TableHeader className="sticky top-0 bg-card">
-          <TableRow>
-            <TableHead>Variable</TableHead>
-            <TableHead>Current</TableHead>
-            <TableHead>Incoming</TableHead>
-            <TableHead className="text-right">Status</TableHead>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="w-[30%]">Variable</TableHead>
+            <TableHead>Current value</TableHead>
+            <TableHead>From CSV</TableHead>
+            <TableHead className="w-28 text-right">Result</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {visible.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
-                No rows match the current filter.
+            <TableRow className="hover:bg-transparent">
+              <TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">
+                No rows match these filters.
               </TableCell>
             </TableRow>
           ) : (
@@ -75,14 +72,25 @@ export function ImportPreviewTable({
               return (
                 <TableRow
                   key={row.key}
-                  className={cn(row.status === 'overwrite' && 'bg-warning/10 hover:bg-warning/15')}
+                  className={cn(row.status === 'overwrite' && 'bg-warning/[0.05]')}
                 >
-                  <TableCell className="font-mono text-sm font-medium">{row.key}</TableCell>
-                  <TableCell className="font-mono text-sm text-muted-foreground">
-                    {displayCurrent(row)}
+                  <TableCell className="break-all font-mono text-xs font-medium">
+                    {row.key}
                   </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {row.incoming === '' ? '(empty)' : row.incoming}
+                  <TableCell className="text-muted-foreground">
+                    <ValueCell
+                      value={row.current}
+                      secret={row.currentIsSecret}
+                      absent={row.current === null && !row.currentIsSecret}
+                      className={
+                        row.status === 'overwrite'
+                          ? 'line-through decoration-warning/60'
+                          : undefined
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <ValueCell value={row.incoming} />
                   </TableCell>
                   <TableCell className="text-right">
                     <Badge variant={meta.variant}>{meta.label}</Badge>
@@ -97,79 +105,51 @@ export function ImportPreviewTable({
   );
 }
 
-/** Toolbar with search + status filter + hide-same toggle, renders the table below. */
+/** Status filter chips + key search over the preview table. Starts on "changes only". */
 export function ImportPreviewTableWithControls({ rows }: { rows: ImportRow[] }) {
-  const [hideSame, setHideSame] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<ImportStatus | 'all'>('all');
-  const [search, setSearch] = useState('');
-
   const counts = useMemo(() => {
-    const c: Record<ImportStatus | 'all', number> = {
-      all: rows.length,
-      overwrite: 0,
-      new: 0,
-      same: 0,
-    };
+    const c: Record<ImportStatus, number> = { overwrite: 0, new: 0, same: 0 };
     for (const r of rows) c[r.status]++;
     return c;
   }, [rows]);
 
-  const filters: { id: ImportStatus | 'all'; label: string; variant: BadgeProps['variant'] }[] = [
-    { id: 'all', label: 'All', variant: 'secondary' },
-    { id: 'overwrite', label: 'Overwrite', variant: 'warning' },
-    { id: 'new', label: 'New', variant: 'success' },
-    { id: 'same', label: 'Same', variant: 'secondary' },
-  ];
+  const [statuses, setStatuses] = useState<Set<ImportStatus>>(
+    () => new Set(counts.overwrite + counts.new > 0 ? ['overwrite', 'new'] : []),
+  );
+  const [search, setSearch] = useState('');
+
+  const toggle = (s: ImportStatus) =>
+    setStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        {/* Status filter pills */}
-        <div className="flex items-center gap-1 rounded-md border p-0.5">
-          {filters.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setStatusFilter(f.id)}
-              className={cn(
-                'flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors',
-                statusFilter === f.id
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {f.label}
-              <Badge variant={f.variant} className="h-4 px-1 text-[10px]">
-                {counts[f.id]}
-              </Badge>
-            </button>
-          ))}
-        </div>
-
-        {/* Search */}
-        <input
-          type="text"
+        {(Object.keys(STATUS_META) as ImportStatus[]).map(
+          (s) =>
+            counts[s] > 0 && (
+              <FilterChip
+                key={s}
+                tone={STATUS_META[s].tone}
+                label={STATUS_META[s].chip}
+                count={counts[s]}
+                active={statuses.has(s)}
+                onClick={() => toggle(s)}
+              />
+            ),
+        )}
+        <SearchBox
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search keys…"
-          className="h-8 flex-1 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring min-w-[160px]"
+          onChange={setSearch}
+          placeholder="Filter keys"
+          className="ml-auto w-full sm:w-56"
         />
-
-        {/* Hide same toggle */}
-        <Button
-          variant={hideSame ? 'secondary' : 'outline'}
-          size="sm"
-          onClick={() => setHideSame((v) => !v)}
-        >
-          {hideSame ? 'Showing changes only' : 'Showing all rows'}
-        </Button>
       </div>
-
-      <ImportPreviewTable
-        rows={rows}
-        hideSame={hideSame}
-        statusFilter={statusFilter}
-        search={search}
-      />
+      <ImportPreviewTable rows={rows} statuses={statuses} search={search} />
     </div>
   );
 }

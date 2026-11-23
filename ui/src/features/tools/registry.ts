@@ -7,6 +7,8 @@ import {
   GitBranch,
   GitCompareArrows,
   Layers,
+  Columns3,
+  Workflow,
   Terminal,
 } from 'lucide-react';
 import type { ToolDefinition } from '@/types/tools';
@@ -31,7 +33,8 @@ export const TOOLS: readonly ToolDefinition[] = [
   {
     id: 'generate-appsettings',
     title: 'Generate App Service Settings',
-    description: 'Build the -KEY "$(KEY)" string from a variable group.',
+    description:
+      'Build the -KEY "$(KEY)" string for the App Service Deploy task from one or more groups.',
     icon: Terminal,
     group: 'Variable Groups',
     path: '/tools/generate-appsettings',
@@ -41,7 +44,8 @@ export const TOOLS: readonly ToolDefinition[] = [
   {
     id: 'compare-appsettings',
     title: 'Compare vs App Settings',
-    description: 'Diff a variable group against pasted App Settings.',
+    description:
+      'Check pasted App Service settings against variable groups: matched, missing, extra, duplicated.',
     icon: GitCompareArrows,
     group: 'Variable Groups',
     path: '/tools/compare-appsettings',
@@ -52,7 +56,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     id: 'variable-group-diff',
     title: 'Variable Group Diff',
     description:
-      'Compare two variable groups key by key - spot changed, missing, and secret values.',
+      'Compare two variable groups key by key, with changed, missing and secret values marked.',
     icon: Diff,
     group: 'Variable Groups',
     path: '/tools/variable-group-diff',
@@ -63,8 +67,8 @@ export const TOOLS: readonly ToolDefinition[] = [
     id: 'multi-group-compare',
     title: 'Multi-Group Compare',
     description:
-      'Compare 2–8 variable groups side by side - spot conflicts, missing keys, and secrets across all environments at once.',
-    icon: GitCompareArrows,
+      'Line up 2 to 8 variable groups side by side to spot conflicts and missing keys across environments.',
+    icon: Columns3,
     group: 'Variable Groups',
     path: '/tools/multi-group-compare',
     component: MultiGroupCompare,
@@ -73,17 +77,19 @@ export const TOOLS: readonly ToolDefinition[] = [
   {
     id: 'csv-import',
     title: 'CSV Import',
-    description: 'Import Key,Value pairs into a variable group.',
+    description:
+      'Load Key,Value rows from a CSV into a variable group, after reviewing every change.',
     icon: FileSpreadsheet,
     group: 'Variable Groups',
     path: '/tools/csv-import',
     component: CsvImport,
     requiresConnection: true,
+    writesToAdo: true,
   },
   {
     id: 'export-group',
     title: 'Export Variable Group',
-    description: 'Export a variable group as CSV, JSON, or TXT.',
+    description: 'Download one variable group as CSV, JSON, TXT or an Excel workbook.',
     icon: Download,
     group: 'Variable Groups',
     path: '/tools/export-group',
@@ -93,7 +99,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   {
     id: 'export-all-groups',
     title: 'Export All Variable Groups',
-    description: 'Export a project’s variable groups into one XLSX workbook.',
+    description: 'Download a project’s variable groups as one Excel workbook, a sheet per group.',
     icon: Layers,
     group: 'Variable Groups',
     path: '/tools/export-all-groups',
@@ -104,7 +110,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     id: 'export-release-vars',
     title: 'Export Release Variables',
     description:
-      'Export inline pipeline variables to CSV, JSON, TXT, or XLSX for migration to a variable group.',
+      'Download a release pipeline’s inline variables, for the whole pipeline or a single stage.',
     icon: GitBranch,
     group: 'Release Pipelines',
     path: '/tools/export-release-vars',
@@ -114,8 +120,9 @@ export const TOOLS: readonly ToolDefinition[] = [
   {
     id: 'release-group-mapping',
     title: 'Release Pipeline Mapping',
-    description: 'See which release pipelines use each variable group. Export to XLSX.',
-    icon: GitBranch,
+    description:
+      'See which release pipelines and stages use each variable group, and export the full list.',
+    icon: Workflow,
     group: 'Release Pipelines',
     path: '/tools/release-group-mapping',
     component: ReleaseGroupMapping,
@@ -124,7 +131,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   {
     id: 'duplicate-finder',
     title: 'Duplicate Finder',
-    description: 'Find duplicate keys in pasted App Settings.',
+    description: 'Find keys listed more than once in pasted App Service settings.',
     icon: CopyCheck,
     group: 'App Settings',
     path: '/tools/duplicate-finder',
@@ -134,7 +141,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   {
     id: 'sort-appsettings',
     title: 'Sort App Settings',
-    description: 'Sort pasted App Settings alphabetically.',
+    description: 'Sort pasted App Service settings alphabetically, with duplicates removed.',
     icon: ArrowDownAZ,
     group: 'App Settings',
     path: '/tools/sort-appsettings',

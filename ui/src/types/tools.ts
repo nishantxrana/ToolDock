@@ -21,4 +21,6 @@ export interface ToolDefinition {
   component: ComponentType;
   /** True if the tool needs a connected session + selected project. */
   requiresConnection: boolean;
+  /** True if the tool changes data in Azure DevOps (everything else only reads). */
+  writesToAdo?: boolean;
 }

@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Download, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { Download } from 'lucide-react';
+import { DownloadPanel } from '@/components/common/DownloadPanel';
+import { pluralVars } from '@/lib/utils/variables';
 import { PageLayout } from '@/components/common/PageLayout';
 import { SectionCard } from '@/components/common/SectionCard';
 import { OutputBlock } from '@/components/common/OutputBlock';
@@ -8,8 +10,6 @@ import { VariableGroupPicker } from '@/components/common/VariableGroupPicker';
 import { RequireProject } from '@/components/common/RequireProject';
 import { FormatToggle } from '@/components/common/FormatToggle';
 import { Callout } from '@/components/common/Callout';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { toKeyValueCsv } from '@/lib/utils/csv';
 import { safeFilename } from '@/lib/utils/download';
 import { exportKeyValueXlsx } from '@/lib/utils/xlsx';
@@ -100,11 +100,11 @@ export function ExportGroup() {
     <RequireProject>
       <PageLayout
         title="Export Variable Group"
-        description="Export a variable group as CSV, JSON, TXT, or XLSX."
+        description="Download one variable group as CSV, JSON, TXT or an Excel workbook. JSON uses the same shape as the Azure DevOps API."
         icon={Download}
       >
         <SectionCard
-          title="Source"
+          title="Variable group"
           actions={<FormatToggle formats={FORMATS} value={format} onChange={setFormat} />}
         >
           <VariableGroupPicker value={group?.id ?? null} onChange={(_, g) => setGroup(g)} />
@@ -113,44 +113,34 @@ export function ExportGroup() {
         {group ? (
           <>
             {hasSecrets && (
-              <Callout variant="warning">
-                Secret variables cannot be read from Azure DevOps; their values are exported empty.
+              <Callout variant="info">
+                Secret values can’t be read from Azure DevOps, so they are exported empty.
               </Callout>
             )}
             {format === 'xlsx' ? (
-              <SectionCard
-                title="XLSX export"
-                actions={<Badge variant="secondary">{variableCount(group)} vars</Badge>}
-              >
-                <div className="flex items-center justify-between gap-4 p-4">
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <FileSpreadsheet className="h-5 w-5" />
-                    <span>
-                      <span className="font-medium text-foreground">{exportFilename}.xlsx</span> -
-                      sheet "{group.name}", {variableCount(group)} variables.
-                    </span>
-                  </div>
-                  <Button size="sm" onClick={handleXlsxDownload} disabled={xlsxExporting}>
-                    {xlsxExporting ? <Loader2 className="animate-spin" /> : <Download />}
-                    {xlsxExporting ? 'Preparing…' : 'Download'}
-                  </Button>
-                </div>
+              <SectionCard title="Excel workbook">
+                <DownloadPanel
+                  filename={`${exportFilename}.xlsx`}
+                  detail={`One sheet named "${group.name}" with ${pluralVars(variableCount(group))}`}
+                  busy={xlsxExporting}
+                  onDownload={handleXlsxDownload}
+                />
               </SectionCard>
             ) : (
               <OutputBlock
-                title={`${active.label} export`}
+                title={`${active.label} preview`}
+                description={pluralVars(variableCount(group))}
                 value={output}
                 downloadName={`${exportFilename}.${active.ext}`}
                 downloadMime={active.mime}
-                actions={<Badge variant="secondary">{variableCount(group)} vars</Badge>}
               />
             )}
           </>
         ) : (
           <EmptyState
             icon={Download}
-            title="Select a variable group"
-            description="Pick a group above to export it."
+            title="Choose a group to export"
+            description="A preview of the file appears here before you download it."
           />
         )}
       </PageLayout>

@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Boxes, Download, Layers, Loader2, Search, X } from 'lucide-react';
+import { Boxes, Layers } from 'lucide-react';
+import { toast } from 'sonner';
+import { SearchBox } from '@/components/common/SearchBox';
+import { DownloadPanel } from '@/components/common/DownloadPanel';
+import { pluralVars } from '@/lib/utils/variables';
 import { Callout } from '@/components/common/Callout';
-import { Input } from '@/components/ui/input';
 import { PageLayout } from '@/components/common/PageLayout';
 import { SectionCard } from '@/components/common/SectionCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorBanner } from '@/components/common/ErrorBanner';
 import { RequireProject } from '@/components/common/RequireProject';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { safeFilename } from '@/lib/utils/download';
@@ -99,6 +100,10 @@ export function ExportAllGroups() {
           })),
         })),
       );
+    } catch (err) {
+      toast.error('Couldn’t create the workbook', {
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
       setExporting(false);
     }
@@ -108,7 +113,7 @@ export function ExportAllGroups() {
     <RequireProject>
       <PageLayout
         title="Export All Variable Groups"
-        description="Export every (or a chosen subset of) this project's variable groups into one XLSX workbook, one sheet per group."
+        description="Download a project's variable groups as one Excel workbook, with a sheet per group. All groups are selected to start with."
         icon={Layers}
       >
         {isLoading && <Skeleton className="h-64 w-full" />}
@@ -117,64 +122,58 @@ export function ExportAllGroups() {
         {!isLoading && !isError && total === 0 && (
           <EmptyState
             icon={Boxes}
-            title="No variable groups"
-            description="This project has no variable groups, or your PAT lacks read access."
+            title="No variable groups in this project"
+            description="Create one in Azure DevOps under Pipelines, Library. If you expected some here, check that your token has Variable Groups read access."
           />
         )}
 
         {!isLoading && !isError && total > 0 && groups && (
           <>
             <SectionCard
-              title={
-                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-                  <Checkbox checked={allFilteredSelected} onCheckedChange={toggleAll} />
-                  {search ? 'Select filtered' : 'Select all'}
-                </label>
-              }
+              title="Groups to include"
+              description={`${selected.size} of ${total} selected`}
               actions={
-                <Badge variant="secondary">
-                  {selected.size}/{total} selected
-                </Badge>
+                <SearchBox
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Filter groups"
+                  className="w-full sm:w-56"
+                />
               }
               contentClassName="p-0"
             >
-              {/* Search bar */}
-              <div className="flex items-center gap-2 border-b px-3 py-2">
-                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Filter groups…"
-                  className="h-7 border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 focus-visible:border-0"
+              <label className="flex cursor-pointer items-center gap-3 border-b border-border-subtle bg-muted/50 px-4 py-2 text-13 font-medium">
+                <Checkbox
+                  checked={
+                    allFilteredSelected
+                      ? true
+                      : filtered.some((g) => selected.has(g.id))
+                        ? 'indeterminate'
+                        : false
+                  }
+                  onCheckedChange={toggleAll}
                 />
-                {search && (
-                  <button
-                    onClick={() => setSearch('')}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
+                {search
+                  ? `Select the ${filtered.length} matching group${filtered.length === 1 ? '' : 's'}`
+                  : 'Select all'}
+              </label>
 
               {filtered.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  No groups match "{search}".
+                <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  No group name contains “{search}”.
                 </p>
               ) : (
-                <ul className="max-h-80 divide-y divide-border overflow-y-auto scrollbar-thin">
+                <ul className="max-h-80 overflow-y-auto scrollbar-thin">
                   {filtered.map((g) => (
                     <li key={g.id}>
-                      <label className="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-muted/50">
-                        <span className="flex items-center gap-2.5 truncate">
-                          <Checkbox
-                            checked={selected.has(g.id)}
-                            onCheckedChange={() => toggleOne(g.id)}
-                          />
-                          <span className="truncate">{g.name}</span>
-                        </span>
-                        <span className="flex-shrink-0 text-xs text-muted-foreground">
-                          {variableCount(g)} vars
+                      <label className="flex cursor-pointer items-center gap-3 border-b border-border-subtle px-4 py-2 text-sm last:border-0 hover:bg-row-hover">
+                        <Checkbox
+                          checked={selected.has(g.id)}
+                          onCheckedChange={() => toggleOne(g.id)}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{g.name}</span>
+                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                          {pluralVars(variableCount(g))}
                         </span>
                       </label>
                     </li>
@@ -184,33 +183,20 @@ export function ExportAllGroups() {
             </SectionCard>
 
             {hasSecrets && (
-              <Callout variant="warning">
-                Secret variables cannot be read from Azure DevOps; their values are exported empty.
+              <Callout variant="info">
+                Secret values can’t be read from Azure DevOps, so they are exported empty.
               </Callout>
             )}
 
-            <SectionCard title="XLSX export">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <Download className="h-5 w-5 flex-shrink-0" />
-                  {selected.size === 0 ? (
-                    <span>Select at least one group to export.</span>
-                  ) : (
-                    <span>
-                      <span className="font-medium text-foreground">{filename}</span> -{' '}
-                      {selected.size} sheet{selected.size === 1 ? '' : 's'}.
-                    </span>
-                  )}
-                </div>
-                <Button
-                  size="sm"
-                  onClick={handleExport}
-                  disabled={selected.size === 0 || exporting}
-                >
-                  {exporting ? <Loader2 className="animate-spin" /> : <Download />}
-                  {exporting ? 'Preparing…' : 'Download'}
-                </Button>
-              </div>
+            <SectionCard title="Excel workbook">
+              <DownloadPanel
+                filename={filename}
+                detail={`${selected.size} sheet${selected.size === 1 ? '' : 's'}, one per group`}
+                busy={exporting}
+                disabled={selected.size === 0}
+                disabledHint="Select at least one group to export."
+                onDownload={handleExport}
+              />
             </SectionCard>
           </>
         )}

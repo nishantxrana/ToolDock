@@ -25,17 +25,17 @@ export function RequireProject({ children }: { children: ReactNode }) {
   if (selectedProject) return <>{children}</>;
 
   return (
-    <div className="flex h-full items-start justify-center px-6 pt-[22vh]">
+    <div className="flex h-full items-start justify-center px-4 pt-[16vh] sm:px-8">
       <div className="w-full max-w-sm space-y-5 text-center">
         {/* Icon */}
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg border border-primary/25 bg-accent text-accent-foreground">
           <FolderGit2 className="h-5 w-5" />
         </div>
 
         {/* Copy */}
         <div className="space-y-1.5">
-          <h2 className="text-sm font-semibold tracking-tight">Select a project</h2>
-          <p className="text-xs text-muted-foreground/70 leading-relaxed">
+          <h2 className="text-xl font-semibold">Pick a project</h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">
             {organization ? (
               <>
                 Connected to <span className="font-medium text-foreground">{organization}</span>.

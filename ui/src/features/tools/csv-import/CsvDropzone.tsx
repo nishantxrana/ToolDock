@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
 import { FileUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils/cn';
 
 interface CsvDropzoneProps {
@@ -15,7 +17,7 @@ export function CsvDropzone({ onFile }: CsvDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const readFile = (file: File) => {
-    if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
+    if (!file.name.toLowerCase().endsWith('.csv') && file.type !== 'text/csv') {
       setTypeError(true);
       return;
     }
@@ -25,39 +27,35 @@ export function CsvDropzone({ onFile }: CsvDropzoneProps) {
     reader.readAsText(file);
   };
 
-  const submitPaste = () => {
-    if (pasteText.trim()) {
-      onFile(pasteText, 'pasted.csv');
-    }
-  };
-
   if (pasteMode) {
     return (
-      <div className="space-y-2">
-        <textarea
+      <div className="space-y-3">
+        <Textarea
           autoFocus
+          aria-label="CSV text"
           value={pasteText}
           onChange={(e) => setPasteText(e.target.value)}
-          placeholder={'Key,Value\nNODE_ENV,production\nAPI_URL,https://…'}
-          className="h-40 w-full resize-y rounded-md border border-input bg-background px-3 py-2 font-mono text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          placeholder={'Key,Value\nNODE_ENV,production\nAPI_URL,https://api.contoso.com'}
+          className="min-h-[160px]"
         />
         <div className="flex gap-2">
-          <button
-            onClick={submitPaste}
+          <Button
+            size="sm"
+            onClick={() => pasteText.trim() && onFile(pasteText, 'pasted.csv')}
             disabled={!pasteText.trim()}
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            Use this CSV
-          </button>
-          <button
+            Preview import
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={() => {
               setPasteMode(false);
               setPasteText('');
             }}
-            className="rounded-md border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
           >
-            Cancel
-          </button>
+            Upload a file instead
+          </Button>
         </div>
       </div>
     );
@@ -81,30 +79,39 @@ export function CsvDropzone({ onFile }: CsvDropzoneProps) {
         onClick={() => inputRef.current?.click()}
         role="button"
         tabIndex={0}
+        aria-label="Choose a CSV file"
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click();
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
         }}
         className={cn(
-          'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors',
-          dragging ? 'border-primary bg-accent' : 'border-border hover:border-primary/50',
-          typeError && 'border-destructive/50 bg-destructive/5',
+          'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          dragging
+            ? 'border-primary bg-accent'
+            : 'border-border-strong/60 bg-muted/40 hover:border-primary/60 hover:bg-accent/50',
+          typeError && 'border-destructive-border bg-destructive-subtle',
         )}
       >
         <FileUp
-          className={cn('h-8 w-8', typeError ? 'text-destructive' : 'text-muted-foreground')}
+          className={cn('h-7 w-7', typeError ? 'text-destructive' : 'text-muted-foreground')}
+          strokeWidth={1.5}
         />
         {typeError ? (
           <>
-            <p className="text-sm font-medium text-destructive">Only .csv files are supported</p>
+            <p className="text-sm font-semibold text-destructive">That isn’t a .csv file</p>
             <p className="text-xs text-muted-foreground">
-              Drop a .csv file, or click to browse again
+              Drop a .csv file, or click to choose one.
             </p>
           </>
         ) : (
           <>
-            <p className="text-sm font-medium">Drop a CSV file here, or click to browse</p>
+            <p className="text-sm font-medium">
+              {dragging ? 'Drop to preview' : 'Drop a CSV file here, or click to choose one'}
+            </p>
             <p className="text-xs text-muted-foreground">
-              Format: <code className="font-mono">Key,Value</code> (a header row is optional)
+              Two columns, <code>Key,Value</code>. A header row is optional.
             </p>
           </>
         )}
@@ -121,12 +128,13 @@ export function CsvDropzone({ onFile }: CsvDropzoneProps) {
         />
       </div>
       <p className="text-center text-xs text-muted-foreground">
-        or{' '}
+        No file?{' '}
         <button
+          type="button"
           onClick={() => setPasteMode(true)}
-          className="text-primary underline-offset-2 hover:underline"
+          className="rounded font-medium text-foreground underline decoration-border-strong underline-offset-[3px] transition-colors hover:decoration-foreground"
         >
-          paste CSV text directly
+          Paste CSV text
         </button>
       </p>
     </div>

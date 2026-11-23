@@ -40,7 +40,7 @@ export function CopyButton({
       className={cn(className)}
       {...props}
     >
-      {copied ? <Check className="text-success" /> : <Copy />}
+      {copied ? <Check /> : <Copy />}
       {!iconOnly && <span>{copied ? 'Copied' : label}</span>}
     </Button>
   );

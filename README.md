@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="ui/public/tooldock-icon-512.png" width="96" alt="ToolDock icon: a teal hex nut seated on a docking bar, on a dark rounded square">
+  <img src="ui/public/tooldock-icon-512.png" width="96" alt="ToolDock icon: three key and value rows on a dark rounded square, one value highlighted amber">
 </p>
 
 # ToolDock

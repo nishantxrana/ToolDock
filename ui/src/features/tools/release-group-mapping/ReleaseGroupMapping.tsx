@@ -1,6 +1,17 @@
 import { useState } from 'react';
-import { Download, GitBranch, Loader2, RefreshCw } from 'lucide-react';
-import { Callout } from '@/components/common/Callout';
+import { RefreshCw, Workflow } from 'lucide-react';
+import { toast } from 'sonner';
+import { DownloadPanel } from '@/components/common/DownloadPanel';
+import { Field } from '@/components/common/Field';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { PageLayout } from '@/components/common/PageLayout';
 import { SectionCard } from '@/components/common/SectionCard';
@@ -8,7 +19,6 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorBanner } from '@/components/common/ErrorBanner';
 import { RequireProject } from '@/components/common/RequireProject';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Combobox } from '@/components/ui/combobox';
 import { safeFilename } from '@/lib/utils/download';
 import { exportReleaseMappingXlsx, type ReleaseMappingRow } from '@/lib/utils/xlsx';
@@ -60,152 +70,153 @@ export function ReleaseGroupMapping() {
       const filename = `${orgPart}-${projectPart}-release-pipeline-mapping.xlsx`;
       const title = `Release Pipeline Mapping - ${organization} / ${project?.name}`;
       await exportReleaseMappingXlsx(filename, title, rows);
+    } catch (err) {
+      toast.error('Couldn’t create the workbook', {
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
       setExporting(false);
     }
   };
 
+  const usages = selectedUsages
+    ? [...selectedUsages].sort((a, b) => a.pipelineName.localeCompare(b.pipelineName))
+    : null;
+  const pct =
+    progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 8;
+
   return (
     <RequireProject>
       <PageLayout
         title="Release Pipeline Mapping"
-        description="See which release pipelines (and stages) use each variable group. Export the full mapping to XLSX."
-        icon={GitBranch}
+        description="See which release pipelines and stages use each variable group, or download the whole cross-reference as an Excel sheet."
+        icon={Workflow}
       >
-        {/* PAT scope notice */}
-        <Callout variant="info">
-          This tool requires a PAT with <strong>Release (read)</strong> scope in addition to
-          Variable Groups (read). If you see a 403 error, regenerate your PAT and add the Release
-          scope.
-        </Callout>
-
         {isLoading && (
-          <SectionCard title="Loading release pipelines…">
-            <div className="space-y-2 p-1">
-              {progress && progress.total > 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Fetching pipelines… {progress.done} / {progress.total}
-                </p>
-              ) : (
-                <p className="text-sm text-muted-foreground">Fetching pipeline list…</p>
-              )}
-              <Skeleton className="h-2 w-full" />
+          <SectionCard title="Reading release pipelines">
+            <div className="space-y-2" role="status" aria-live="polite">
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className="text-13 text-muted-foreground">
+                {progress && progress.total > 0
+                  ? `${progress.done} of ${progress.total} pipelines read`
+                  : 'Listing pipelines'}
+              </p>
             </div>
           </SectionCard>
         )}
 
-        {isError && <ErrorBanner error={error} onRetry={() => refetch()} />}
+        {isError && (
+          <>
+            <ErrorBanner error={error} onRetry={() => refetch()} />
+            <p className="text-13 text-muted-foreground">
+              This tool also needs the <strong className="text-foreground">Release (Read)</strong>{' '}
+              scope on your token. A 403 error usually means it is missing.
+            </p>
+          </>
+        )}
 
         {!isLoading && !isError && data && (
           <>
             {variableGroups.length === 0 ? (
               <EmptyState
-                icon={GitBranch}
-                title="No variable groups"
-                description="This project has no variable groups, or your PAT lacks read access."
+                icon={Workflow}
+                title="No variable groups in this project"
+                description="There is nothing to map yet. If you expected groups here, check that your token has Variable Groups read access."
               />
             ) : (
               <>
-                {/* Group picker */}
-                <SectionCard title="Find by variable group">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-muted-foreground">
-                      Variable Group
-                    </label>
+                <SectionCard title="Look up a variable group">
+                  <Field label="Variable group" className="max-w-md">
                     <Combobox
                       options={groupOptions}
                       value={selectedGroupId !== null ? String(selectedGroupId) : undefined}
                       onChange={(v) => setSelectedGroupId(Number(v))}
-                      placeholder="Select a variable group…"
-                      searchPlaceholder="Search groups…"
-                      className="max-w-sm"
+                      placeholder="Choose a variable group"
+                      searchPlaceholder="Search groups"
                     />
-                  </div>
+                  </Field>
                 </SectionCard>
 
-                {/* Results table */}
-                {selectedUsages !== null && (
-                  <SectionCard title={`Pipelines using "${selectedGroupName}"`}>
-                    {selectedUsages.length === 0 ? (
+                {usages !== null && (
+                  <SectionCard
+                    title={`Pipelines using ${selectedGroupName}`}
+                    description={
+                      usages.length > 0
+                        ? `${usages.length} link${usages.length === 1 ? '' : 's'}`
+                        : undefined
+                    }
+                    contentClassName={usages.length > 0 ? 'p-0' : undefined}
+                  >
+                    {usages.length === 0 ? (
                       <EmptyState
-                        icon={GitBranch}
-                        title="Not used in any pipeline"
-                        description="This variable group is not attached to any release pipeline in this project."
+                        icon={Workflow}
+                        title="Not linked to any release pipeline"
+                        description="It may still be used by YAML pipelines, which this tool doesn’t read."
                       />
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b border-border text-left text-xs font-semibold text-muted-foreground">
-                              <th className="px-4 py-2.5">Pipeline Name</th>
-                              <th className="px-4 py-2.5">Stage</th>
-                              <th className="px-4 py-2.5">Scope</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border">
-                            {[...selectedUsages]
-                              .sort((a, b) => a.pipelineName.localeCompare(b.pipelineName))
-                              .map((u, i) => (
-                                <tr key={i} className="hover:bg-muted/50">
-                                  <td className="px-4 py-2.5 font-medium">{u.pipelineName}</td>
-                                  <td className="px-4 py-2.5 text-muted-foreground">
-                                    {u.stageName ?? (
-                                      <em className="not-italic text-muted-foreground">
-                                        (all stages)
-                                      </em>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-2.5">
-                                    <span
-                                      className={
-                                        u.scope === 'Definition-level'
-                                          ? 'text-muted-foreground'
-                                          : 'text-foreground'
-                                      }
-                                    >
-                                      {u.scope}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
+                      <div className="max-h-[28rem] overflow-auto scrollbar-thin">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="hover:bg-transparent">
+                              <TableHead className="pl-4">Pipeline</TableHead>
+                              <TableHead>Stage</TableHead>
+                              <TableHead>Linked at</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {usages.map((u, i) => (
+                              <TableRow key={i}>
+                                <TableCell className="pl-4 font-medium">{u.pipelineName}</TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  {u.stageName ?? 'All stages'}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={
+                                      u.scope === 'Definition-level' ? 'secondary' : 'default'
+                                    }
+                                  >
+                                    {u.scope === 'Definition-level' ? 'Pipeline' : 'Stage'}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
                       </div>
                     )}
                   </SectionCard>
                 )}
 
-                {/* Export + refetch card */}
-                <SectionCard title="Export full mapping">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <Download className="h-5 w-5 flex-shrink-0" />
-                      <span>
-                        All variable groups × all release pipelines - one flat sheet, easy to filter
-                        in Excel.
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
+                <SectionCard title="Full mapping">
+                  <DownloadPanel
+                    filename={`${safeFilename(organization ?? '')}-${safeFilename(project?.name ?? '')}-release-pipeline-mapping.xlsx`}
+                    detail="Every variable group with every pipeline and stage that uses it, in one sheet"
+                    busy={exporting}
+                    disabled={isFetching}
+                    onDownload={handleExport}
+                    extraActions={
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
-                            size="sm"
                             variant="outline"
+                            size="icon"
                             onClick={() => refetch()}
                             disabled={isFetching}
+                            aria-label="Read pipelines again"
                           >
                             <RefreshCw className={isFetching ? 'animate-spin' : ''} />
-                            Refresh
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Re-fetch pipeline data</TooltipContent>
+                        <TooltipContent>Read pipelines again</TooltipContent>
                       </Tooltip>
-                      <Button size="sm" onClick={handleExport} disabled={exporting || isFetching}>
-                        {exporting ? <Loader2 className="animate-spin" /> : <Download />}
-                        {exporting ? 'Preparing…' : 'Export .xlsx'}
-                      </Button>
-                    </div>
-                  </div>
+                    }
+                  />
                 </SectionCard>
               </>
             )}

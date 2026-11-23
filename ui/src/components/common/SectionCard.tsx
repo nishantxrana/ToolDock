@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils/cn';
 
 interface SectionCardProps {
   title?: ReactNode;
+  /** One line under the title explaining what this panel is for. */
+  description?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -12,26 +14,30 @@ interface SectionCardProps {
 
 export function SectionCard({
   title,
+  description,
   actions,
   children,
   className,
   contentClassName,
 }: SectionCardProps) {
   return (
-    <Card className={className}>
+    <Card className={cn('overflow-hidden', className)}>
       {(title || actions) && (
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b bg-muted/30 py-3 rounded-t-[calc(var(--radius)+2px)]">
-          {title ? (
-            <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {title}
-            </CardTitle>
-          ) : (
-            <span />
-          )}
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+        <CardHeader className="flex min-h-12 flex-row flex-wrap items-center justify-between gap-x-3 gap-y-2 space-y-0 border-b border-border-subtle px-4 py-2.5">
+          <div className="min-w-0">
+            {title && (
+              <CardTitle className="font-display text-sm font-semibold leading-snug tracking-normal">
+                {title}
+              </CardTitle>
+            )}
+            {description && (
+              <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{description}</p>
+            )}
+          </div>
+          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         </CardHeader>
       )}
-      <CardContent className={cn('pt-4', contentClassName)}>{children}</CardContent>
+      <CardContent className={cn('p-4', contentClassName)}>{children}</CardContent>
     </Card>
   );
 }

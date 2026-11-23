@@ -5,9 +5,9 @@ import { ConnectForm } from '@/features/connection/ConnectForm';
 
 function ConnectGate() {
   return (
-    <div className="flex min-h-[calc(100vh-7rem)] items-start justify-center px-6 pt-[14vh] pb-24">
-      <div className="w-full max-w-sm">
-        <ConnectForm onConnected={() => {}} />
+    <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-8 sm:py-14">
+      <div>
+        <ConnectForm title="Connect to use this tool" onConnected={() => {}} />
       </div>
     </div>
   );

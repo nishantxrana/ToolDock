@@ -22,6 +22,8 @@ interface ComboboxProps {
   className?: string;
   /** Width class for the popover content, defaults to w-[--radix-popover-trigger-width] */
   contentClassName?: string;
+  /** Forwarded to the trigger so a <label htmlFor> can point at it. */
+  id?: string;
 }
 
 export function Combobox({
@@ -34,6 +36,7 @@ export function Combobox({
   disabled,
   className,
   contentClassName,
+  id,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const selected = options.find((o) => o.value === value);
@@ -43,10 +46,14 @@ export function Combobox({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          id={id}
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className={cn('w-full justify-between font-normal', className)}
+          className={cn(
+            'w-full justify-between px-3 font-normal shadow-none data-[state=open]:border-primary data-[state=open]:ring-[3px] data-[state=open]:ring-primary/20',
+            className,
+          )}
         >
           <span className="truncate text-left">
             {selected ? (
@@ -55,7 +62,7 @@ export function Combobox({
               <span className="text-muted-foreground">{placeholder}</span>
             )}
           </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -67,7 +74,7 @@ export function Combobox({
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
             <CommandInput
               placeholder={searchPlaceholder}
-              className="h-9 flex-1 border-0 bg-transparent p-0 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-0"
+              className="h-10 flex-1 border-0 bg-transparent p-0 text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:ring-0"
             />
           </div>
           <CommandList className="max-h-[260px] overflow-y-auto scrollbar-thin p-1">
@@ -83,7 +90,7 @@ export function Combobox({
                     onChange(option.value);
                     setOpen(false);
                   }}
-                  className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground"
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground"
                 >
                   <Check
                     className={cn(
@@ -93,7 +100,9 @@ export function Combobox({
                   />
                   <span className="flex-1 truncate">{option.label}</span>
                   {option.description && (
-                    <span className="text-xs text-muted-foreground">{option.description}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {option.description}
+                    </span>
                   )}
                 </CommandItem>
               ))}

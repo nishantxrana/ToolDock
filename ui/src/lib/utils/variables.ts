@@ -34,3 +34,6 @@ export function toVariableMap(pairs: Array<{ key: string; value: string }>): Var
   }
   return map;
 }
+
+/** "1 variable" / "12 variables". */
+export const pluralVars = (n: number) => `${n} variable${n === 1 ? '' : 's'}`;

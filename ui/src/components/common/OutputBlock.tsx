@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Download } from 'lucide-react';
 import { CopyButton } from './CopyButton';
 import { Button } from '@/components/ui/button';
@@ -6,15 +7,18 @@ import { downloadText } from '@/lib/utils/download';
 
 interface OutputBlockProps {
   title?: string;
+  description?: ReactNode;
   value: string;
   downloadName?: string;
   downloadMime?: string;
-  actions?: React.ReactNode;
+  actions?: ReactNode;
   emptyHint?: string;
 }
 
+/** Generated text with copy + download. Copy is the primary action. */
 export function OutputBlock({
   title = 'Output',
+  description,
   value,
   downloadName,
   downloadMime = 'text/plain',
@@ -26,6 +30,7 @@ export function OutputBlock({
   return (
     <SectionCard
       title={title}
+      description={description}
       actions={
         <>
           {actions}
@@ -35,18 +40,19 @@ export function OutputBlock({
               size="sm"
               disabled={!hasValue}
               onClick={() => downloadText(downloadName, value, downloadMime)}
+              title={`Download ${downloadName}`}
             >
               <Download />
               Download
             </Button>
           )}
-          <CopyButton value={value} />
+          <CopyButton value={value} variant="default" disabled={!hasValue} />
         </>
       }
       contentClassName="p-0"
     >
       {hasValue ? (
-        <pre className="max-h-[560px] overflow-auto scrollbar-thin whitespace-pre-wrap break-words rounded-b-[calc(var(--radius)+2px)] bg-code-bg border-t border-border/60 p-4 font-mono text-[13px] leading-relaxed">
+        <pre className="max-h-[560px] overflow-auto whitespace-pre-wrap break-words bg-code-bg p-4 font-mono text-13 leading-relaxed scrollbar-thin">
           {value}
         </pre>
       ) : (

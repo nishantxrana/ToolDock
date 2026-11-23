@@ -1,9 +1,14 @@
 import { useMemo, useState } from 'react';
-import { GitCompareArrows, Lock, X } from 'lucide-react';
+import { Columns3, Download, Loader2, Plus, X } from 'lucide-react';
+import { PageLayout } from '@/components/common/PageLayout';
 import { SearchBox } from '@/components/common/SearchBox';
 import { ErrorBanner } from '@/components/common/ErrorBanner';
 import { EmptyState } from '@/components/common/EmptyState';
 import { RequireProject } from '@/components/common/RequireProject';
+import { FilterChip, LegendItem } from '@/components/common/FilterChip';
+import { TONE_MARK, type Tone } from '@/lib/utils/tone';
+import { ValueCell } from '@/components/common/ValueCell';
+import { pluralVars } from '@/lib/utils/variables';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Combobox } from '@/components/ui/combobox';
@@ -16,252 +21,131 @@ import { cn } from '@/lib/utils/cn';
 import type { VariableGroup } from '@/types/ado';
 import { toast } from 'sonner';
 
-// ---------------------------------------------------------------------------
-// Color palette - one per group slot (up to 8)
-// ---------------------------------------------------------------------------
-
-const GROUP_PALETTE = [
-  { dot: 'bg-primary', text: 'text-primary', border: 'border-primary/30', bg: 'bg-primary/8' },
-  {
-    dot: 'bg-amber-500',
-    text: 'text-amber-600',
-    border: 'border-amber-400/40',
-    bg: 'bg-amber-50/80 dark:bg-amber-950/30',
-  },
-  {
-    dot: 'bg-emerald-500',
-    text: 'text-emerald-600',
-    border: 'border-emerald-400/40',
-    bg: 'bg-emerald-50/80 dark:bg-emerald-950/30',
-  },
-  {
-    dot: 'bg-violet-500',
-    text: 'text-violet-600',
-    border: 'border-violet-400/40',
-    bg: 'bg-violet-50/80 dark:bg-violet-950/30',
-  },
-  {
-    dot: 'bg-rose-500',
-    text: 'text-rose-600',
-    border: 'border-rose-400/40',
-    bg: 'bg-rose-50/80 dark:bg-rose-950/30',
-  },
-  {
-    dot: 'bg-cyan-500',
-    text: 'text-cyan-600',
-    border: 'border-cyan-400/40',
-    bg: 'bg-cyan-50/80 dark:bg-cyan-950/30',
-  },
-  {
-    dot: 'bg-orange-500',
-    text: 'text-orange-600',
-    border: 'border-orange-400/40',
-    bg: 'bg-orange-50/80 dark:bg-orange-950/30',
-  },
-  {
-    dot: 'bg-pink-500',
-    text: 'text-pink-600',
-    border: 'border-pink-400/40',
-    bg: 'bg-pink-50/80 dark:bg-pink-950/30',
-  },
-] as const;
-
 const MAX_GROUPS = 8;
+const LETTERS = 'ABCDEFGH';
 
-// ---------------------------------------------------------------------------
-// Row status config
-// ---------------------------------------------------------------------------
+const STATUSES: { id: RowStatus; label: string; tone: Tone; hint: string }[] = [
+  { id: 'conflict', label: 'conflicts', tone: 'warning', hint: 'Values differ between groups' },
+  { id: 'partial', label: 'missing in some', tone: 'destructive', hint: 'Not set in every group' },
+  { id: 'same', label: 'same everywhere', tone: 'neutral', hint: 'Same in every group' },
+];
 
-const ROW_STATUS_LABEL: Record<RowStatus, string> = {
-  same: 'Same',
-  conflict: 'Conflict',
-  partial: 'Missing in some',
+const ROW_TINT: Partial<Record<RowStatus, string>> = {
+  conflict: 'bg-warning/[0.05]',
+  partial: 'bg-destructive/[0.04]',
+};
+// The sticky key cell needs an opaque background, so the tint is layered on as an inset shadow.
+const STICKY_TINT: Partial<Record<RowStatus, string>> = {
+  conflict: 'shadow-[inset_0_0_0_999px_hsl(var(--warning)/0.05)]',
+  partial: 'shadow-[inset_0_0_0_999px_hsl(var(--destructive)/0.04)]',
 };
 
-const ROW_CLASS: Record<RowStatus, string> = {
-  same: 'opacity-50 hover:opacity-100',
-  conflict: 'bg-warning/6 border-l-2 border-l-warning',
-  partial: 'bg-primary/4 border-l-2 border-l-primary/50',
-};
-
-const STATUS_DOT: Record<RowStatus, string> = {
-  same: 'bg-success',
-  conflict: 'bg-warning',
-  partial: 'bg-primary/60',
-};
-
-const CHIP_ACTIVE: Record<RowStatus, string> = {
-  same: 'bg-success/15 text-success border-success/30 ring-1 ring-success/20',
-  conflict: 'bg-warning/15 text-warning border-warning/30 ring-1 ring-warning/20',
-  partial: 'bg-primary/12 text-primary border-primary/30 ring-1 ring-primary/20',
-};
-
-const CHIP_INACTIVE =
-  'bg-transparent text-muted-foreground border-border/50 hover:border-border hover:text-foreground';
-
-// ---------------------------------------------------------------------------
-// Cell display
-// ---------------------------------------------------------------------------
-
-function CellValue({ status, value }: { status: string; value: string }) {
-  if (status === 'missing')
-    return <span className="text-muted-foreground/25 select-none text-xs">-</span>;
-  if (status === 'secret')
-    return (
-      <span className="inline-flex items-center gap-1 text-muted-foreground/50 italic text-xs">
-        <Lock className="h-3 w-3 shrink-0" />
-        secret
-      </span>
-    );
-  if (!value) return <span className="text-muted-foreground/40 italic text-xs">empty</span>;
+function Letter({ i }: { i: number }) {
   return (
-    <span className="font-mono text-xs break-all leading-relaxed" title={value}>
-      {value}
+    <span
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-border-strong bg-muted font-display text-xs font-bold text-foreground"
+      aria-hidden
+    >
+      {LETTERS[i]}
     </span>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Compare table
-// ---------------------------------------------------------------------------
 
 function CompareTable({ rows, groups }: { rows: CompareRow[]; groups: VariableGroup[] }) {
   if (rows.length === 0) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <p className="text-sm text-muted-foreground">No keys match the current filters.</p>
-      </div>
+      <p className="py-16 text-center text-sm text-muted-foreground">
+        No keys match these filters.
+      </p>
     );
   }
+  const head =
+    'sticky top-0 z-10 h-9 border-b bg-muted px-3 text-left align-middle text-xs font-semibold';
+  const cell = 'border-b border-border-subtle px-3 py-2 align-top';
 
   return (
-    <table className="w-full text-sm border-collapse">
-      <thead className="sticky top-0 z-10">
-        <tr className="border-b border-border bg-muted/50 backdrop-blur-sm">
-          <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground w-[220px] min-w-[160px]">
+    <table className="w-full border-separate border-spacing-0 text-13">
+      <thead>
+        <tr>
+          <th
+            className={cn(
+              head,
+              'left-0 z-20 w-[250px] min-w-[220px] pl-5 text-muted-foreground md:sticky',
+            )}
+          >
             Key
           </th>
-          {groups.map((g, i) => {
-            const palette = GROUP_PALETTE[i % GROUP_PALETTE.length]!;
-            return (
-              <th key={g.id} className="px-3 py-2.5 text-left text-xs font-semibold min-w-[160px]">
-                <span className={cn('inline-flex items-center gap-1.5', palette.text)}>
-                  <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', palette.dot)} />
-                  <span className="truncate max-w-[180px]" title={g.name}>
-                    {g.name}
-                  </span>
+          {groups.map((g, i) => (
+            <th key={g.id} className={cn(head, 'min-w-[170px]')}>
+              <span className="inline-flex max-w-[220px] items-center gap-1.5">
+                <Letter i={i} />
+                <span className="truncate" title={g.name}>
+                  {g.name}
                 </span>
-              </th>
-            );
-          })}
+              </span>
+            </th>
+          ))}
         </tr>
       </thead>
-      <tbody className="divide-y divide-border/30">
-        {rows.map((row) => (
-          <tr key={row.key} className={cn('transition-all', ROW_CLASS[row.rowStatus])}>
-            <td className="px-3 py-2 align-top">
-              <span className="inline-flex items-center gap-1.5">
+      <tbody>
+        {rows.map((row) => {
+          const s = STATUSES.find((x) => x.id === row.rowStatus)!;
+          // In a conflict row, highlight values that differ from the first present value.
+          const first = row.cells.find((c) => c.status === 'value')?.value;
+          return (
+            <tr
+              key={row.key}
+              className={cn('group/row hover:bg-row-hover', ROW_TINT[row.rowStatus])}
+            >
+              <td
+                className={cn(
+                  cell,
+                  'relative left-0 z-[1] bg-card pl-5 group-hover/row:bg-row-hover md:sticky',
+                  STICKY_TINT[row.rowStatus],
+                )}
+              >
                 <span
                   className={cn(
-                    'h-1.5 w-1.5 rounded-full shrink-0 mt-0.5',
-                    STATUS_DOT[row.rowStatus],
+                    'absolute inset-y-1.5 left-1.5 w-[3px] rounded-full',
+                    row.rowStatus === 'same' ? 'bg-transparent' : TONE_MARK[s.tone],
                   )}
-                  title={ROW_STATUS_LABEL[row.rowStatus]}
+                  aria-hidden
                 />
-                <span className="font-mono text-xs break-all">{row.key}</span>
-              </span>
-            </td>
-            {row.cells.map((cell, ci) => (
-              <td key={ci} className="px-3 py-2 align-top">
-                <CellValue status={cell.status} value={cell.value} />
+                <span className="sr-only">{s.hint}: </span>
+                <span className="font-mono text-xs font-medium [overflow-wrap:anywhere]">
+                  {row.key}
+                </span>
               </td>
-            ))}
-          </tr>
-        ))}
+              {row.cells.map((c, ci) => (
+                <td key={ci} className={cell}>
+                  <ValueCell
+                    value={c.value}
+                    secret={c.status === 'secret'}
+                    absent={c.status === 'missing'}
+                    className={
+                      row.rowStatus === 'conflict' && c.status === 'value' && c.value !== first
+                        ? 'text-warning'
+                        : row.rowStatus === 'same'
+                          ? 'text-muted-foreground'
+                          : undefined
+                    }
+                  />
+                </td>
+              ))}
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Group chip
-// ---------------------------------------------------------------------------
-
-function GroupChip({
-  group,
-  index,
-  onRemove,
-}: {
-  group: VariableGroup;
-  index: number;
-  onRemove: () => void;
-}) {
-  const palette = GROUP_PALETTE[index % GROUP_PALETTE.length]!;
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
-        palette.border,
-        palette.bg,
-        palette.text,
-      )}
-    >
-      <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', palette.dot)} />
-      <span className="max-w-[140px] truncate" title={group.name}>
-        {group.name}
-      </span>
-      <span className="opacity-50 tabular-nums">({variableCount(group)})</span>
-      <button
-        onClick={onRemove}
-        className="ml-0.5 rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-        aria-label={`Remove ${group.name}`}
-      >
-        <X className="h-2.5 w-2.5" />
-      </button>
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Status filter chip
-// ---------------------------------------------------------------------------
-
-function StatusChip({
-  status,
-  count,
-  active,
-  onClick,
-}: {
-  status: RowStatus;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-}) {
-  if (count === 0) return null;
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all',
-        active ? CHIP_ACTIVE[status] : CHIP_INACTIVE,
-      )}
-    >
-      <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', STATUS_DOT[status])} />
-      <span className="tabular-nums">{count}</span>
-      <span className="opacity-70">{ROW_STATUS_LABEL[status].toLowerCase()}</span>
-    </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
 
 export function MultiGroupCompare() {
   const [selectedGroups, setSelectedGroups] = useState<VariableGroup[]>([]);
   const [filter, setFilter] = useState('');
   const [activeStatuses, setActiveStatuses] = useState<Set<RowStatus>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const [pickerKey, setPickerKey] = useState(0);
 
   const { data: allGroups, isLoading, isError, error, refetch } = useVariableGroups();
   const groups = useMemo(() => allGroups ?? [], [allGroups]);
@@ -272,35 +156,33 @@ export function MultiGroupCompare() {
   );
 
   const addGroup = (id: string) => {
-    const g = groups.find((g) => g.id === Number(id));
+    const g = groups.find((x) => x.id === Number(id));
     if (g) setSelectedGroups((prev) => [...prev, g]);
+    setPickerKey((k) => k + 1);
   };
-
   const removeGroup = (id: number) => setSelectedGroups((prev) => prev.filter((g) => g.id !== id));
 
-  const result = useMemo(() => {
-    if (selectedGroups.length < 2) return null;
-    return compareGroups(selectedGroups);
-  }, [selectedGroups]);
+  const result = useMemo(
+    () => (selectedGroups.length < 2 ? null : compareGroups(selectedGroups)),
+    [selectedGroups],
+  );
 
   const filteredRows = useMemo(() => {
     if (!result) return [];
     let rows = result.rows;
     if (activeStatuses.size > 0) rows = rows.filter((r) => activeStatuses.has(r.rowStatus));
-    if (filter) rows = rows.filter((r) => r.key.toLowerCase().includes(filter.toLowerCase()));
+    const q = filter.trim().toLowerCase();
+    if (q) rows = rows.filter((r) => r.key.toLowerCase().includes(q));
     return rows;
   }, [result, activeStatuses, filter]);
 
-  const toggleStatus = (s: RowStatus) => {
+  const toggleStatus = (s: RowStatus) =>
     setActiveStatuses((prev) => {
       const next = new Set(prev);
       if (next.has(s)) next.delete(s);
       else next.add(s);
       return next;
     });
-  };
-
-  const canCompare = selectedGroups.length >= 2;
 
   const handleExport = async () => {
     if (!result) return;
@@ -312,8 +194,10 @@ export function MultiGroupCompare() {
         selectedGroups.map((g) => g.name),
         result.rows,
       );
-    } catch {
-      toast.error('Export failed');
+    } catch (err) {
+      toast.error('Couldn’t create the XLSX file', {
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
       setExporting(false);
     }
@@ -321,139 +205,126 @@ export function MultiGroupCompare() {
 
   return (
     <RequireProject>
-      <div className="flex h-full flex-col overflow-hidden">
-        {/* ── Top bar ─────────────────────────────────────────── */}
-        <div className="shrink-0 border-b border-border bg-background">
-          <div className="mx-auto w-full max-w-6xl space-y-3 px-6 py-4">
-            {/* Title */}
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-primary/20">
-                <GitCompareArrows className="h-3.5 w-3.5" />
+      <PageLayout
+        title="Multi-Group Compare"
+        description={`Line up 2 to ${MAX_GROUPS} variable groups, one column each. Conflicting values and keys missing from some groups are marked.`}
+        icon={Columns3}
+        variant="fill"
+      >
+        {isError && <ErrorBanner error={error} onRetry={() => refetch()} />}
+        {isLoading ? (
+          <div className="flex gap-2">
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-8 w-40" />
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedGroups.map((g, i) => (
+              <span
+                key={g.id}
+                className="inline-flex h-8 max-w-[260px] items-center gap-2 rounded-md border bg-popover pl-1.5 pr-0.5 text-13"
+              >
+                <Letter i={i} />
+                <span className="truncate font-medium" title={g.name}>
+                  {g.name}
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {variableCount(g)}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="h-6 w-6 text-muted-foreground"
+                  onClick={() => removeGroup(g.id)}
+                  aria-label={`Remove ${g.name}`}
+                >
+                  <X />
+                </Button>
               </span>
-              <div>
-                <h1 className="text-sm font-semibold tracking-tight">Multi-Group Compare</h1>
-                <p className="text-xs text-muted-foreground/70">
-                  Compare up to {MAX_GROUPS} variable groups side by side
-                </p>
-              </div>
-            </div>
+            ))}
 
-            {/* Group chips + add picker */}
-            {isError && <ErrorBanner error={error} onRetry={() => refetch()} />}
-            {isLoading ? (
-              <div className="flex gap-2">
-                <Skeleton className="h-7 w-32 rounded-full" />
-                <Skeleton className="h-7 w-28 rounded-full" />
-                <Skeleton className="h-7 w-36 rounded-full" />
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                {selectedGroups.map((g, i) => (
-                  <GroupChip key={g.id} group={g} index={i} onRemove={() => removeGroup(g.id)} />
-                ))}
-
-                {selectedGroups.length < MAX_GROUPS && availableGroups.length > 0 && (
-                  <Combobox
-                    options={availableGroups.map((g) => ({
-                      value: String(g.id),
-                      label: g.name,
-                      description: `${variableCount(g)} vars`,
-                    }))}
-                    onChange={addGroup}
-                    placeholder="+ Add group"
-                    searchPlaceholder="Search groups…"
-                    className="h-7 rounded-full border-dashed text-xs px-3"
-                  />
-                )}
-
-                {selectedGroups.length === 0 && (
-                  <p className="text-xs text-muted-foreground/60">
-                    Add at least 2 groups to compare
-                  </p>
-                )}
+            {selectedGroups.length < MAX_GROUPS && availableGroups.length > 0 && (
+              <div className="w-56">
+                <Combobox
+                  key={pickerKey}
+                  options={availableGroups.map((g) => ({
+                    value: String(g.id),
+                    label: g.name,
+                    description: pluralVars(variableCount(g)),
+                  }))}
+                  onChange={addGroup}
+                  placeholder={selectedGroups.length === 0 ? 'Add a group' : 'Add another group'}
+                  searchPlaceholder="Search groups"
+                  className="h-8 border-dashed text-13"
+                  contentClassName="w-72"
+                />
               </div>
             )}
+            {selectedGroups.length >= MAX_GROUPS && (
+              <p className="text-xs text-muted-foreground">
+                {MAX_GROUPS} groups is the most this view can show side by side.
+              </p>
+            )}
+          </div>
+        )}
 
-            {/* Toolbar - only when ≥2 groups */}
-            {canCompare && result && (
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Status chips */}
-                {(['conflict', 'partial', 'same'] as RowStatus[]).map((s) => {
-                  const count =
-                    s === 'conflict'
-                      ? result.counts.conflict
-                      : s === 'partial'
-                        ? result.counts.partial
-                        : result.counts.same;
-                  return (
-                    <StatusChip
-                      key={s}
-                      status={s}
+        {!result ? (
+          <EmptyState
+            icon={Plus}
+            title={selectedGroups.length === 1 ? 'Add one more group' : 'Add the groups to compare'}
+            description="Each key becomes a row and each group a column, so you can see at a glance which environment has a different value or is missing a key."
+          />
+        ) : (
+          <div className="flex min-h-[24rem] flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-card">
+            <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-3 py-2.5">
+              {STATUSES.map((s) => {
+                const count = result.counts[s.id];
+                return (
+                  count > 0 && (
+                    <FilterChip
+                      key={s.id}
+                      tone={s.tone}
+                      label={s.label}
                       count={count}
-                      active={activeStatuses.has(s)}
-                      onClick={() => toggleStatus(s)}
+                      active={activeStatuses.has(s.id)}
+                      onClick={() => toggleStatus(s.id)}
                     />
-                  );
-                })}
-
-                <div className="flex-1" />
-
+                  )
+                );
+              })}
+              <div className="ml-auto flex items-center gap-2">
                 <SearchBox
                   value={filter}
                   onChange={setFilter}
-                  placeholder="Filter keys…"
-                  className="w-44"
+                  placeholder="Filter keys"
+                  className="w-full sm:w-48"
                 />
-
                 <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
-                  {exporting ? 'Exporting…' : 'Export XLSX'}
+                  {exporting ? <Loader2 className="animate-spin" /> : <Download />}
+                  Export XLSX
                 </Button>
               </div>
-            )}
-          </div>
-        </div>
+            </div>
 
-        {/* ── Scrollable table ─────────────────────────────────── */}
-        <div className="flex-1 overflow-hidden flex justify-center">
-          <div className="w-full max-w-6xl overflow-y-auto overflow-x-auto scrollbar-thin">
-            {!canCompare ? (
-              <div className="flex h-[60vh] items-center justify-center px-6">
-                <EmptyState
-                  icon={GitCompareArrows}
-                  title="Add groups to compare"
-                  description="Select 2–8 variable groups above. Each key is shown as a row; each group is a column. Conflicts and missing keys are highlighted automatically."
-                />
-              </div>
-            ) : result ? (
-              <>
-                <CompareTable rows={filteredRows} groups={selectedGroups} />
+            <div className="min-h-0 flex-1 overflow-auto scrollbar-thin">
+              <CompareTable rows={filteredRows} groups={selectedGroups} />
+            </div>
 
-                {/* Footer */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border/40 px-3 py-2.5 text-xs text-muted-foreground bg-muted/10">
-                  <span className="tabular-nums font-medium">
-                    {filteredRows.length === result.counts.total
-                      ? `${result.counts.total} keys`
-                      : `${filteredRows.length} of ${result.counts.total} keys`}
-                  </span>
-                  <span className="h-3 w-px bg-border/50" />
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-warning" />
-                    Conflict - values differ between groups
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary/60" />
-                    Missing in some groups
-                  </span>
-                  <span className="flex items-center gap-1.5 opacity-60">
-                    <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                    Same everywhere (dimmed)
-                  </span>
-                </div>
-              </>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-border-subtle bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
+              <span className="font-medium tabular-nums text-foreground">
+                {filteredRows.length === result.counts.total
+                  ? `${result.counts.total} keys`
+                  : `${filteredRows.length} of ${result.counts.total} keys`}
+              </span>
+              {STATUSES.filter((s) => s.id !== 'same').map((s) => (
+                <LegendItem key={s.id} tone={s.tone}>
+                  {s.hint}
+                </LegendItem>
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
+        )}
+      </PageLayout>
     </RequireProject>
   );
 }

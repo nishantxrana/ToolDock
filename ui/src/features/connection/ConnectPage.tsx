@@ -1,7 +1,6 @@
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { ConnectForm } from './ConnectForm';
 import { useSessionStore } from '@/store/sessionStore';
-import { Navigate } from 'react-router-dom';
 
 export function ConnectPage() {
   const isConnected = useSessionStore((s) => s.isConnected);
@@ -11,10 +10,8 @@ export function ConnectPage() {
   if (isConnected) return <Navigate to="/" replace />;
 
   return (
-    <div className="flex min-h-[calc(100vh-7rem)] items-start justify-center px-6 pt-[14vh] pb-24">
-      <div className="w-full max-w-sm">
-        <ConnectForm onConnected={() => navigate('/', { replace: true })} />
-      </div>
+    <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-8 sm:py-14">
+      <ConnectForm onConnected={() => navigate('/', { replace: true })} />
     </div>
   );
 }

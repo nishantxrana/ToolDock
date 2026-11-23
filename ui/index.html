@@ -8,8 +8,21 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111216" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="description" content="ToolDock - Productivity tools for Azure DevOps engineers." />
     <title>ToolDock</title>
+    <script>
+      // Set the theme class before first paint so there is no flash of the wrong theme.
+      (function () {
+        var t = null;
+        try {
+          t = localStorage.getItem('tooldock-theme');
+        } catch (e) {}
+        var dark = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+      })();
+    </script>
   </head>
   <body class="h-full">
     <div id="root" class="h-full"></div>

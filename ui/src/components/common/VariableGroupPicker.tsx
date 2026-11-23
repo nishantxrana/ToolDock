@@ -4,7 +4,9 @@ import { Combobox } from '@/components/ui/combobox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorBanner } from './ErrorBanner';
 import { EmptyState } from './EmptyState';
+import { Field } from './Field';
 import { useVariableGroups } from '@/lib/hooks/useVariableGroups';
+import { pluralVars, variableCount } from '@/lib/utils/variables';
 import type { VariableGroup } from '@/types/ado';
 
 interface VariableGroupPickerProps {
@@ -17,30 +19,34 @@ interface VariableGroupPickerProps {
 export function VariableGroupPicker({
   value,
   onChange,
-  label = 'Variable Group',
+  label = 'Variable group',
 }: VariableGroupPickerProps) {
   const { data: groups, isLoading, isError, error, refetch } = useVariableGroups();
 
   const options = useMemo(
-    () => (groups ?? []).map((g) => ({ value: String(g.id), label: g.name })),
+    () =>
+      (groups ?? []).map((g) => ({
+        value: String(g.id),
+        label: g.name,
+        description: pluralVars(variableCount(g)),
+      })),
     [groups],
   );
 
-  if (isLoading) return <Skeleton className="h-9 w-full max-w-sm" />;
+  if (isLoading) return <Skeleton className="h-9 w-full max-w-md" />;
   if (isError) return <ErrorBanner error={error} onRetry={() => refetch()} />;
   if (!groups || groups.length === 0) {
     return (
       <EmptyState
         icon={Boxes}
-        title="No variable groups"
-        description="This project has no variable groups, or your PAT lacks read access."
+        title="No variable groups in this project"
+        description="Create one in Azure DevOps under Pipelines, Library. If you expected some here, check that your token has Variable Groups read access."
       />
     );
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-muted-foreground">{label}</label>
+    <Field label={label} className="max-w-md">
       <Combobox
         options={options}
         value={value !== null ? String(value) : undefined}
@@ -49,10 +55,9 @@ export function VariableGroupPicker({
           const group = groups.find((g) => g.id === id);
           if (group) onChange(id, group);
         }}
-        placeholder="Select a variable group…"
-        searchPlaceholder="Search groups…"
-        className="max-w-sm"
+        placeholder="Choose a variable group"
+        searchPlaceholder="Search groups"
       />
-    </div>
+    </Field>
   );
 }

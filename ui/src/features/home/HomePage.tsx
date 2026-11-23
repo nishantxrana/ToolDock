@@ -1,166 +1,216 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Lock, Wifi } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { PencilLine, PlugZap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { TOOLS, toolsByGroup } from '@/features/tools/registry';
-import { APP_NAME, APP_SUBTITLE } from '@/lib/constants';
 import { useSessionStore } from '@/store/sessionStore';
 import { cn } from '@/lib/utils/cn';
 import type { ToolDefinition } from '@/types/tools';
 
-function ToolRow({ tool, connected }: { tool: ToolDefinition; connected: boolean }) {
-  const locked = tool.requiresConnection && !connected;
+/* ------------------------------------------------------------------------ */
+/* Hero specimen: a miniature of what the compare tools produce.            */
+/* ------------------------------------------------------------------------ */
 
-  const row = (
-    <div
-      className={cn(
-        'group flex items-center gap-4 rounded-lg border border-transparent px-4 py-3 transition-all duration-150',
-        locked
-          ? 'opacity-40 cursor-not-allowed'
-          : 'hover:border-border hover:bg-muted/40 cursor-pointer',
-      )}
+type RowStatus = 'same' | 'changed' | 'missing' | 'secret';
+
+const SPECIMEN: { key: string; dev: string; prod: string | null; status: RowStatus }[] = [
+  { key: 'Auth__Authority', dev: 'login.contoso.com', prod: 'login.contoso.com', status: 'same' },
+  { key: 'ConnectionStrings__Sql', dev: 'sql-dev-01', prod: 'sql-prod-01', status: 'changed' },
+  { key: 'FeatureFlags__NewCheckout', dev: 'true', prod: null, status: 'missing' },
+  { key: 'Jwt__SigningKey', dev: '••••••', prod: '••••••', status: 'secret' },
+  { key: 'Logging__MinLevel', dev: 'Debug', prod: 'Warning', status: 'changed' },
+];
+
+const STATUS_STYLE: Record<RowStatus, { label: string; mark: string; text: string }> = {
+  same: { label: 'Same', mark: 'bg-muted-foreground/40', text: 'text-muted-foreground' },
+  changed: { label: 'Changed', mark: 'bg-warning', text: 'text-warning' },
+  missing: { label: 'Missing in prod', mark: 'bg-destructive', text: 'text-destructive' },
+  secret: { label: 'Secret', mark: 'bg-info', text: 'text-info' },
+};
+
+function DiffSpecimen() {
+  return (
+    <figure
+      className="overflow-hidden rounded-lg border bg-card shadow-card"
+      aria-label="Example: two variable groups compared key by key"
     >
-      {/* Icon */}
-      <div
+      <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] border-b bg-muted/50 px-4 py-2 text-xs font-medium text-muted-foreground">
+        <span>Key</span>
+        <span>app-dev</span>
+        <span>app-prod</span>
+      </div>
+      <ul className="font-mono text-[12.5px]">
+        {SPECIMEN.map((row, i) => {
+          const s = STATUS_STYLE[row.status];
+          return (
+            <li
+              key={row.key}
+              className="specimen-row relative grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] items-center border-b border-border/60 px-4 py-2 last:border-0"
+              style={{ animationDelay: `${120 + i * 90}ms` }}
+              title={s.label}
+            >
+              <span className={cn('absolute inset-y-1.5 left-0 w-[3px] rounded-r', s.mark)} />
+              <span className="truncate pr-3 text-foreground">{row.key}</span>
+              <span className="truncate pr-3 text-muted-foreground">{row.dev}</span>
+              <span
+                className={cn('truncate', row.status === 'same' ? 'text-muted-foreground' : s.text)}
+              >
+                {row.prod ?? '—'}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <figcaption className="flex flex-wrap gap-x-4 gap-y-1 border-t bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+        {(['changed', 'missing', 'secret'] as const).map((k) => (
+          <span key={k} className="inline-flex items-center gap-1.5">
+            <span className={cn('h-2 w-2 rounded-sm', STATUS_STYLE[k].mark)} />
+            {STATUS_STYLE[k].label}
+          </span>
+        ))}
+      </figcaption>
+    </figure>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+/* Tool index                                                               */
+/* ------------------------------------------------------------------------ */
+
+function ToolLink({ tool, connected }: { tool: ToolDefinition; connected: boolean }) {
+  const needsConnect = tool.requiresConnection && !connected;
+  return (
+    <Link
+      to={tool.path}
+      className="group -mx-3 flex gap-3.5 rounded-md px-3 py-3 transition-colors hover:bg-card focus-visible:bg-card"
+    >
+      <span
         className={cn(
-          'flex h-8 w-8 shrink-0 items-center justify-center rounded-md ring-1',
-          locked
-            ? 'bg-muted text-muted-foreground ring-border'
-            : 'bg-primary/10 text-primary ring-primary/20 group-hover:bg-primary/15',
+          'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors',
+          needsConnect
+            ? 'border-border bg-muted/50 text-muted-foreground'
+            : 'border-primary/25 bg-accent text-accent-foreground',
         )}
       >
         <tool.icon className="h-4 w-4" />
-      </div>
-
-      {/* Text */}
-      <div className="min-w-0 flex-1">
-        <p
-          className={cn(
-            'text-sm font-medium leading-tight',
-            locked ? 'text-muted-foreground' : 'text-foreground',
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-medium leading-snug decoration-border-strong underline-offset-[3px] group-hover:underline">
+            {tool.title}
+          </span>
+          {tool.writesToAdo && (
+            <span className="inline-flex items-center gap-1 rounded border border-warning/35 px-1.5 text-[11px] font-medium text-warning">
+              <PencilLine className="h-3 w-3" />
+              Writes to Azure DevOps
+            </span>
           )}
-        >
-          {tool.title}
-        </p>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">{tool.description}</p>
-      </div>
-
-      {/* Right side */}
-      <div className="flex shrink-0 items-center gap-2">
-        {tool.requiresConnection && <Lock className="h-3 w-3 text-muted-foreground/50" />}
-        {!locked && (
-          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/0 transition-all group-hover:text-muted-foreground/60 group-hover:translate-x-0.5" />
-        )}
-      </div>
-    </div>
+          {!tool.requiresConnection && (
+            <span className="rounded bg-success/10 px-1.5 text-[11px] font-medium text-success">
+              No connection needed
+            </span>
+          )}
+        </span>
+        <span className="mt-0.5 block text-sm leading-relaxed text-muted-foreground">
+          {tool.description}
+        </span>
+      </span>
+    </Link>
   );
+}
 
-  if (locked) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div>{row}</div>
-        </TooltipTrigger>
-        <TooltipContent side="right">Connect to Azure DevOps to use this tool</TooltipContent>
-      </Tooltip>
-    );
-  }
-
-  return <Link to={tool.path}>{row}</Link>;
+function ToolGroup({
+  group,
+  tools,
+  connected,
+}: {
+  group: string;
+  tools: readonly ToolDefinition[];
+  connected: boolean;
+}) {
+  return (
+    <section aria-labelledby={`group-${group}`}>
+      <h2
+        id={`group-${group}`}
+        className="flex items-baseline gap-2 border-b pb-2 text-base font-semibold"
+      >
+        {group}
+        <span className="font-sans text-sm font-normal tabular-nums text-muted-foreground">
+          {tools.length}
+        </span>
+      </h2>
+      <div className="mt-1">
+        {tools.map((tool) => (
+          <ToolLink key={tool.id} tool={tool} connected={connected} />
+        ))}
+      </div>
+    </section>
+  );
 }
 
 export function HomePage() {
   const isConnected = useSessionStore((s) => s.isConnected);
-  const groups = toolsByGroup();
-
-  const groupColors: Record<string, string> = {
-    'Variable Groups': 'text-blue-500 dark:text-blue-400',
-    'Release Pipelines': 'text-violet-500 dark:text-violet-400',
-    'App Settings': 'text-emerald-500 dark:text-emerald-400',
-  };
+  const organization = useSessionStore((s) => s.organization);
+  const selectedProject = useSessionStore((s) => s.selectedProject);
+  const [variableGroups, ...otherGroups] = toolsByGroup();
+  const offlineTool = TOOLS.find((t) => !t.requiresConnection);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-10 space-y-8">
-      {/* Page header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <img src="/favicon.svg" alt={APP_NAME} className="h-9 w-9" />
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 sm:py-12">
+      {isConnected ? (
+        <header className="mb-10">
+          <h1 className="text-3xl font-semibold leading-tight">
+            {selectedProject ? selectedProject.name : 'Pick a project to start'}
+          </h1>
+          <p className="mt-1.5 text-muted-foreground">
+            Connected to <span className="font-medium text-foreground">{organization}</span>.{' '}
+            {selectedProject
+              ? 'Every tool below reads from this project. Change it from the project menu at the top.'
+              : 'Choose one from the project menu at the top, or open a tool and pick it there.'}
+          </p>
+        </header>
+      ) : (
+        <header className="mb-14 grid items-center gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,27rem)]">
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">{APP_NAME}</h1>
-            <p className="text-sm text-muted-foreground">{APP_SUBTITLE}</p>
+            <h1 className="max-w-[20ch] text-[2rem] font-bold leading-[1.1] sm:text-[2.6rem]">
+              Your Azure DevOps variables, compared and exported in seconds.
+            </h1>
+            <p className="mt-4 max-w-[54ch] leading-relaxed text-muted-foreground">
+              Diff variable groups across environments, check them against App Service settings, and
+              export to Excel. Runs in your browser. Your token stays in memory and is sent only to
+              Azure DevOps.
+            </p>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <Button asChild size="lg">
+                <Link to="/connect">
+                  <PlugZap />
+                  Connect to Azure DevOps
+                </Link>
+              </Button>
+              {offlineTool && (
+                <Button asChild size="lg" variant="ghost">
+                  <Link to={offlineTool.path}>Try {offlineTool.title} without signing in</Link>
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-
-        {/* Connection status - actionable */}
-        {isConnected ? (
-          <Badge
-            variant="outline"
-            className="gap-1.5 text-xs font-normal text-muted-foreground mt-1"
-          >
-            <Wifi className="h-3 w-3 text-emerald-500" />
-            Connected
-          </Badge>
-        ) : (
-          <Link
-            to="/connect"
-            className="mt-1 flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
-          >
-            Connect to ADO
-            <ArrowRight className="h-3 w-3" />
-          </Link>
-        )}
-      </div>
-
-      {/* Tool groups */}
-      {groups.map(({ group, tools }) => {
-        const connectedCount = tools.filter((t) => !t.requiresConnection || isConnected).length;
-        const allLocked = tools.every((t) => t.requiresConnection) && !isConnected;
-
-        return (
-          <section key={group} className="space-y-1">
-            {/* Section header */}
-            <div className="flex items-center gap-2.5 px-4 pb-1">
-              <span
-                className={cn(
-                  'text-[11px] font-semibold uppercase tracking-widest',
-                  groupColors[group] ?? 'text-muted-foreground',
-                )}
-              >
-                {group}
-              </span>
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-[11px] text-muted-foreground tabular-nums">
-                {allLocked ? (
-                  <span className="flex items-center gap-1">
-                    <Lock className="h-2.5 w-2.5" />
-                    {tools.length}
-                  </span>
-                ) : (
-                  `${connectedCount} / ${tools.length}`
-                )}
-              </span>
-            </div>
-
-            {/* Tool rows */}
-            <div>
-              {tools.map((tool) => (
-                <ToolRow key={tool.id} tool={tool} connected={isConnected} />
-              ))}
-            </div>
-          </section>
-        );
-      })}
-
-      {/* Footer nudge - only when disconnected */}
-      {!isConnected && (
-        <p className="px-4 text-xs text-muted-foreground/60">
-          {TOOLS.filter((t) => !t.requiresConnection).length} tools work without a connection -{' '}
-          <Link to="/connect" className="text-primary hover:underline">
-            connect to unlock the rest
-          </Link>
-          .
-        </p>
+          <DiffSpecimen />
+        </header>
       )}
+
+      <div className="grid gap-x-14 gap-y-10 xl:grid-cols-2">
+        {variableGroups && (
+          <ToolGroup
+            group={variableGroups.group}
+            tools={variableGroups.tools}
+            connected={isConnected}
+          />
+        )}
+        <div className="space-y-10">
+          {otherGroups.map(({ group, tools }) => (
+            <ToolGroup key={group} group={group} tools={tools} connected={isConnected} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

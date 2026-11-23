@@ -4,9 +4,7 @@ import { PageLayout } from '@/components/common/PageLayout';
 import { SectionCard } from '@/components/common/SectionCard';
 import { OutputBlock } from '@/components/common/OutputBlock';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { Segmented } from '@/components/ui/segmented';
 import {
   distinctKeys,
   formatAppSettings,
@@ -34,13 +32,13 @@ export function SortAppSettings() {
   return (
     <PageLayout
       title="Sort App Settings"
-      description="Paste App Settings (one-line or multiline) and get them back sorted alphabetically."
+      description="Paste App Service settings and get them back in alphabetical order, with duplicates removed. Works without a connection."
       icon={ArrowDownAZ}
     >
       <div className="grid gap-6 lg:grid-cols-2">
         <SectionCard
-          title="Input"
-          actions={<Badge variant="secondary">{sortedKeys.length} vars</Badge>}
+          title="App settings"
+          description={sortedKeys.length > 0 ? `${sortedKeys.length} unique keys` : undefined}
         >
           <Textarea
             value={input}
@@ -49,22 +47,26 @@ export function SortAppSettings() {
               '-NODE_ENV "$(NODE_ENV)" -JWT_SECRET "$(JWT_SECRET)" -API_URL "$(API_URL)"'
             }
             className="min-h-[360px]"
+            aria-label="App settings"
             autoFocus
           />
         </SectionCard>
 
         <OutputBlock
-          title="Sorted"
+          title="Sorted settings"
           value={output}
           downloadName="app-settings-sorted.txt"
-          emptyHint="Paste App Settings on the left to see the sorted result."
+          emptyHint="Paste settings to see them sorted."
           actions={
-            <label className="flex items-center gap-2 pr-1 text-sm">
-              <Switch checked={oneLine} onCheckedChange={setOneLine} id="oneline-sort" />
-              <Label htmlFor="oneline-sort" className="cursor-pointer text-muted-foreground">
-                One line
-              </Label>
-            </label>
+            <Segmented
+              label="Layout"
+              options={[
+                { value: 'oneline', label: 'One line' },
+                { value: 'multiline', label: 'One per line' },
+              ]}
+              value={oneLine ? 'oneline' : 'multiline'}
+              onChange={(v) => setOneLine(v === 'oneline')}
+            />
           }
         />
       </div>

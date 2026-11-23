@@ -1,101 +1,145 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;600;700&family=Red+Hat+Mono:wght@400;500&family=Red+Hat+Text:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * ToolDock design tokens: "Graphite"
+ * ----------------------------------
+ * Near-monochrome by design. The brand is ink (near-black in light, near-white
+ * in dark) on neutral cool graphite, so the only saturated colour on screen is
+ * status: green = matched/new, amber = changed, red = missing, blue = secret/info.
+ * Values are HSL triplets (consumed by tailwind.config.ts as hsl(var(--x) / <alpha>)).
+ *
+ * Roles follow a Radix-style step model:
+ *   canvas / surface / raised / overlay  -> page, panels, inputs & menus, dialogs
+ *   border-subtle / border / border-strong
+ *   foreground (Lc >= 90) / muted-foreground (Lc >= 60)
+ *   <status> solid, <status>-subtle surface, <status>-border
+ * Text pairs are verified with scripts/contrast.mjs (WCAG 2 + APCA).
+ */
 @layer base {
   :root {
-    /* GitHub Light - canvas */
-    --background: 0 0% 100%; /* #ffffff */
-    --foreground: 213 13% 14%; /* #1f2328 */
+    /* Neutrals: graphite, hue 220 at very low saturation (no green or warm cast) */
+    --background: 220 12% 96%; /* canvas  #f3f4f6 */
+    --sidebar: 220 11% 93%; /* rail    #ebedf0 */
+    --card: 0 0% 100%; /* surface #ffffff */
+    --popover: 0 0% 100%; /* raised  #ffffff */
+    --muted: 220 12% 94%; /* fills: table heads, chips, wells */
+    --secondary: 220 12% 93%;
+    --row-hover: 220 14% 97.5%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 213 13% 14%;
+    --foreground: 222 16% 11%; /* ink #16191f */
+    --card-foreground: 222 16% 11%;
+    --popover-foreground: 222 16% 11%;
+    --secondary-foreground: 222 16% 11%;
+    --sidebar-foreground: 222 16% 11%;
+    --muted-foreground: 220 8% 38%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 213 13% 14%;
+    --border-subtle: 220 12% 91%;
+    --border: 220 10% 86%;
+    --border-strong: 220 8% 72%;
+    --input: 220 9% 80%;
+    --sidebar-border: 220 10% 87%;
 
-    /* GitHub Light blue #0969da */
-    --primary: 212 92% 45%;
+    /* Brand: ink */
+    --primary: 222 16% 13%; /* #1c1f26 */
+    --primary-hover: 222 12% 24%;
     --primary-foreground: 0 0% 100%;
+    --accent: 220 14% 90%; /* selected nav, icon tiles */
+    --accent-foreground: 222 16% 11%;
+    --ring: 222 14% 30%;
 
-    --secondary: 210 17% 97%; /* #f6f8fa */
-    --secondary-foreground: 213 13% 14%;
-
-    --muted: 210 17% 97%; /* #f6f8fa */
-    --muted-foreground: 212 9% 43%; /* #636c76 */
-
-    --accent: 212 92% 94%; /* very light blue hover tint */
-    --accent-foreground: 212 92% 30%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-
-    --success: 142 71% 35%;
+    /* Status */
+    --success: 158 72% 27%;
     --success-foreground: 0 0% 100%;
+    --success-subtle: 152 48% 93%;
+    --success-border: 155 38% 72%;
 
-    --warning: 38 92% 45%;
+    --warning: 30 92% 33%;
     --warning-foreground: 0 0% 100%;
+    --warning-subtle: 40 92% 92%;
+    --warning-border: 38 70% 66%;
 
-    --border: 210 18% 82%; /* #d0d7de */
-    --input: 210 18% 82%;
-    --ring: 212 92% 45%;
+    --destructive: 356 70% 44%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-subtle: 356 85% 96%;
+    --destructive-border: 356 60% 80%;
 
-    --sidebar: 210 17% 97%; /* #f6f8fa */
-    --sidebar-foreground: 213 13% 14%;
-    --sidebar-border: 210 18% 82%; /* #d0d7de */
+    --info: 212 74% 40%;
+    --info-foreground: 0 0% 100%;
+    --info-subtle: 212 80% 95%;
+    --info-border: 212 55% 80%;
 
-    --code-bg: 210 17% 97%; /* #f6f8fa */
-    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+    --code-bg: 220 14% 97%;
 
-    --radius: 0.625rem;
+    /* Elevation */
+    --shadow-card: 0 1px 0 0 rgb(22 25 31 / 0.04);
+    --shadow-raised: 0 1px 2px rgb(22 25 31 / 0.06), 0 4px 12px -2px rgb(22 25 31 / 0.1);
+    --shadow-overlay: 0 2px 4px rgb(22 25 31 / 0.06), 0 16px 40px -8px rgb(22 25 31 / 0.25);
+    --overlay-scrim: 222 16% 11% / 0.35;
+
+    --radius: 0.5rem;
+    --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   }
 
   .dark {
-    /* GitHub Dark - canvas */
-    --background: 216 28% 7%; /* #0d1117 */
-    --foreground: 208 35% 93%; /* #e6edf3 */
+    --background: 225 10% 7%; /* canvas  #111216 */
+    --sidebar: 225 10% 5%; /* rail    #0b0c0e */
+    --card: 225 9% 9.5%; /* surface #16171b */
+    --popover: 225 8% 12.5%; /* raised  #1e1f23 */
+    --muted: 225 7% 13%;
+    --secondary: 225 7% 15%;
+    --row-hover: 225 7% 11.5%;
 
-    --card: 215 21% 11%; /* #161b22 */
-    --card-foreground: 208 35% 93%;
+    --foreground: 220 12% 92%;
+    --card-foreground: 220 12% 92%;
+    --popover-foreground: 220 12% 92%;
+    --secondary-foreground: 220 12% 92%;
+    --sidebar-foreground: 220 12% 92%;
+    --muted-foreground: 220 8% 73%;
 
-    --popover: 215 21% 11%; /* #161b22 */
-    --popover-foreground: 208 35% 93%;
+    --border-subtle: 225 7% 13.5%;
+    --border: 225 6% 18%;
+    --border-strong: 225 5% 30%;
+    --input: 225 6% 23%;
+    --sidebar-border: 225 7% 13%;
 
-    /* GitHub Dark blue #4491e9 */
-    --primary: 212 79% 59%;
-    --primary-foreground: 218 80% 2%; /* near #010409 - dark text on blue */
+    /* Brand: paper */
+    --primary: 220 14% 93%; /* #eceef1 */
+    --primary-hover: 220 10% 82%;
+    --primary-foreground: 225 14% 8%;
+    --accent: 225 7% 17%;
+    --accent-foreground: 220 14% 95%;
+    --ring: 220 10% 72%;
 
-    --secondary: 218 17% 18%; /* #262c36 */
-    --secondary-foreground: 208 35% 93%;
+    --success: 152 55% 58%;
+    --success-foreground: 158 50% 7%;
+    --success-subtle: 158 40% 12%;
+    --success-border: 158 35% 25%;
 
-    --muted: 218 17% 18%; /* #262c36 */
-    --muted-foreground: 214 8% 60%; /* #9198a1 */
+    --warning: 38 90% 61%;
+    --warning-foreground: 30 50% 8%;
+    --warning-subtle: 36 45% 12%;
+    --warning-border: 36 40% 27%;
 
-    --accent: 218 17% 22%; /* slightly lighter than muted */
-    --accent-foreground: 212 79% 75%;
+    --destructive: 4 95% 80%;
+    --destructive-foreground: 356 50% 8%;
+    --destructive-subtle: 356 35% 14%;
+    --destructive-border: 356 32% 29%;
 
-    --destructive: 0 63% 45%;
-    --destructive-foreground: 0 0% 100%;
+    --info: 210 90% 76%;
+    --info-foreground: 210 50% 8%;
+    --info-subtle: 212 40% 14%;
+    --info-border: 212 35% 29%;
 
-    --success: 142 60% 42%;
-    --success-foreground: 0 0% 100%;
+    --code-bg: 225 10% 7.5%;
 
-    --warning: 38 90% 55%;
-    --warning-foreground: 218 80% 2%;
-
-    --border: 212 12% 21%; /* #30363d */
-    --input: 212 12% 21%;
-    --ring: 212 79% 59%;
-
-    /* GitHub Dark sidebar #010409 - deepest black */
-    --sidebar: 218 80% 2%; /* #010409 */
-    --sidebar-foreground: 208 35% 93%;
-    --sidebar-border: 215 15% 15%; /* #21262d */
-
-    --code-bg: 215 21% 11%; /* #161b22 */
-    --shadow-card: 0 1px 4px 0 rgb(0 0 0 / 0.4);
+    --shadow-card: inset 0 1px 0 0 rgb(255 255 255 / 0.03);
+    --shadow-raised: 0 0 0 1px rgb(0 0 0 / 0.3), 0 8px 20px -4px rgb(0 0 0 / 0.55);
+    --shadow-overlay: 0 0 0 1px rgb(0 0 0 / 0.35), 0 24px 48px -12px rgb(0 0 0 / 0.75);
+    --overlay-scrim: 225 12% 2% / 0.6;
   }
 }
 
@@ -103,37 +147,85 @@
   * {
     @apply border-border;
   }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
   body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    @apply bg-background font-sans text-foreground antialiased;
+    font-size: 15px;
+    line-height: 1.5;
     text-rendering: optimizeLegibility;
+    font-variant-numeric: tabular-nums;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.25);
   }
   kbd {
-    @apply rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none shadow-sm;
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-card px-1 font-sans text-[11px] font-medium leading-none text-muted-foreground;
+    box-shadow: 0 1px 0 0 hsl(var(--border));
   }
   code:not(pre code) {
     @apply rounded bg-muted px-1 py-0.5 font-mono text-[0.85em];
   }
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 @layer utilities {
+  .font-display {
+    font-family: 'Red Hat Display', ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.015em;
+  }
+
   /* Thin, unobtrusive scrollbars */
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--border)) transparent;
+    scrollbar-color: hsl(var(--border-strong) / 0.6) transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--border));
+    background-color: hsl(var(--border-strong) / 0.6);
     border-radius: 9999px;
   }
 
-  /* Dot-grid background for the connection page */
-  .bg-dot-grid {
-    background-image: radial-gradient(circle at 1px 1px, hsl(var(--border)) 1px, transparent 0);
-    background-size: 24px 24px;
+  /* Home hero specimen - rows settle in once on first load */
+  .specimen-row {
+    animation: specimen-in 420ms var(--ease-out) both;
+  }
+  @keyframes specimen-in {
+    from {
+      opacity: 0;
+      transform: translateX(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 }

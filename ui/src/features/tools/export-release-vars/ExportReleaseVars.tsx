@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Download, FileSpreadsheet, GitBranch, Loader2, RefreshCw } from 'lucide-react';
+import { Download, GitBranch, RefreshCw } from 'lucide-react';
+import { DownloadPanel } from '@/components/common/DownloadPanel';
+import { Field } from '@/components/common/Field';
+import { pluralVars } from '@/lib/utils/variables';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { PageLayout } from '@/components/common/PageLayout';
@@ -12,7 +15,6 @@ import { FormatToggle } from '@/components/common/FormatToggle';
 import { Callout } from '@/components/common/Callout';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
@@ -124,7 +126,7 @@ export function ExportReleaseVars() {
     return [
       {
         id: DEFINITION_SCOPE,
-        label: 'Definition-level (all stages)',
+        label: 'Whole pipeline (all stages)',
         count: varCount(def.variables),
       },
       ...def.environments.map((e) => ({
@@ -177,46 +179,43 @@ export function ExportReleaseVars() {
   return (
     <RequireProject>
       <PageLayout
-        title="Export Release Pipeline Variables"
-        description="Export inline variables from a release pipeline to CSV, JSON, TXT, or XLSX for easy migration to a variable group."
+        title="Export Release Variables"
+        description="Download the variables defined inline on a release pipeline, for the whole pipeline or one stage. Useful when moving them into a variable group."
         icon={GitBranch}
       >
         {/* Pipeline picker */}
         <SectionCard
-          title="Source"
+          title="Release pipeline"
           actions={<FormatToggle formats={FORMATS} value={format} onChange={setFormat} />}
         >
           <div className="space-y-3">
             {defsLoading && <Skeleton className="h-9 w-full" />}
             {defsError && <ErrorBanner error={defsErr} onRetry={() => defsRefetch()} />}
-            {!defsLoading && !defsError && (
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-muted-foreground">
-                  Release Pipeline
-                </label>
-                {!definitions || definitions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No release pipelines found in this project.
-                  </p>
-                ) : (
+            {!defsLoading &&
+              !defsError &&
+              (!definitions || definitions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  This project has no classic release pipelines.
+                </p>
+              ) : (
+                <Field label="Pipeline" className="max-w-md">
                   <Combobox
                     options={definitions.map((d) => ({ value: String(d.id), label: d.name }))}
                     value={selectedDefId !== null ? String(selectedDefId) : undefined}
                     onChange={(v) => handleDefChange(Number(v))}
-                    placeholder="Select a release pipeline…"
-                    searchPlaceholder="Search pipelines…"
+                    placeholder="Choose a release pipeline"
+                    searchPlaceholder="Search pipelines"
                   />
-                )}
-              </div>
-            )}
+                </Field>
+              ))}
 
             {/* Scope picker - shown after a pipeline is selected */}
             {defLoading && <Skeleton className="h-9 w-full" />}
             {defError && <ErrorBanner error={defErr} onRetry={() => defRefetch()} />}
             {def && scopes.length > 0 && (
-              <div className="flex items-end gap-2">
+              <div className="flex max-w-md items-end gap-2">
                 <div className="flex flex-1 flex-col gap-1.5">
-                  <label className="text-sm font-medium text-muted-foreground">Scope</label>
+                  <span className="text-13 font-medium">Variables from</span>
                   <Select value={scopeId} onValueChange={setScopeId}>
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -227,7 +226,7 @@ export function ExportReleaseVars() {
                           <span className="flex w-full items-center justify-between gap-4">
                             <span>{s.label}</span>
                             <span className="tabular-nums text-muted-foreground">
-                              {s.count} var{s.count === 1 ? '' : 's'}
+                              {pluralVars(s.count)}
                             </span>
                           </span>
                         </SelectItem>
@@ -242,11 +241,12 @@ export function ExportReleaseVars() {
                       size="icon"
                       onClick={() => defRefetch()}
                       disabled={defFetching}
+                      aria-label="Reload this pipeline"
                     >
                       <RefreshCw className={defFetching ? 'animate-spin' : ''} />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Refresh pipeline definition</TooltipContent>
+                  <TooltipContent>Reload this pipeline</TooltipContent>
                 </Tooltip>
               </div>
             )}
@@ -257,43 +257,33 @@ export function ExportReleaseVars() {
         {def && (
           <>
             {hasSecrets && (
-              <Callout variant="warning">
-                Secret variables cannot be read from Azure DevOps; their values are exported empty.
+              <Callout variant="info">
+                Secret values can’t be read from Azure DevOps, so they are exported empty.
               </Callout>
             )}
 
             {vars.length === 0 ? (
               <EmptyState
                 icon={GitBranch}
-                title="No inline variables"
-                description="This scope has no inline variables. Variables may come entirely from attached variable groups - use Release Pipeline Mapping to see which groups are linked."
+                title="No inline variables here"
+                description="This pipeline or stage gets its variables from linked variable groups. Release Pipeline Mapping shows which ones."
               />
             ) : format === 'xlsx' ? (
-              <SectionCard
-                title="XLSX export"
-                actions={<Badge variant="secondary">{vars.length} vars</Badge>}
-              >
-                <div className="flex items-center justify-between gap-4 p-4">
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <FileSpreadsheet className="h-5 w-5" />
-                    <span>
-                      <span className="font-medium text-foreground">{exportFilename}.xlsx</span> -{' '}
-                      {vars.length} variable{vars.length === 1 ? '' : 's'}.
-                    </span>
-                  </div>
-                  <Button size="sm" onClick={handleXlsxDownload} disabled={xlsxExporting}>
-                    {xlsxExporting ? <Loader2 className="animate-spin" /> : <Download />}
-                    {xlsxExporting ? 'Preparing…' : 'Download'}
-                  </Button>
-                </div>
+              <SectionCard title="Excel workbook">
+                <DownloadPanel
+                  filename={`${exportFilename}.xlsx`}
+                  detail={`${pluralVars(vars.length)} from ${scopeLabel}`}
+                  busy={xlsxExporting}
+                  onDownload={handleXlsxDownload}
+                />
               </SectionCard>
             ) : (
               <OutputBlock
-                title={`${active.label} export`}
+                title={`${active.label} preview`}
+                description={pluralVars(vars.length)}
                 value={output}
                 downloadName={`${exportFilename}.${active.ext}`}
                 downloadMime={active.mime}
-                actions={<Badge variant="secondary">{vars.length} vars</Badge>}
               />
             )}
           </>
@@ -302,8 +292,8 @@ export function ExportReleaseVars() {
         {!def && !defLoading && !defError && selectedDefId === null && (
           <EmptyState
             icon={Download}
-            title="Select a release pipeline"
-            description="Pick a pipeline above to export its inline variables."
+            title="Choose a pipeline to export"
+            description="A preview of the file appears here before you download it."
           />
         )}
       </PageLayout>

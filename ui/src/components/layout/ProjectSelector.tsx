@@ -6,7 +6,7 @@ import { useSessionStore } from '@/store/sessionStore';
 
 /** Header control to pick the active project. Selection lives in memory only. */
 export function ProjectSelector() {
-  const { data: projects, isLoading, isError } = useProjects();
+  const { data: projects, isLoading, isError, refetch } = useProjects();
   const selectedProject = useSessionStore((s) => s.selectedProject);
   const selectProject = useSessionStore((s) => s.selectProject);
 
@@ -15,9 +15,17 @@ export function ProjectSelector() {
     [projects],
   );
 
-  if (isLoading) return <Skeleton className="h-9 w-52" />;
+  if (isLoading) return <Skeleton className="h-8 w-36 sm:w-52" />;
   if (isError || !projects) {
-    return <span className="text-sm text-destructive">Failed to load projects</span>;
+    return (
+      <button
+        type="button"
+        onClick={() => refetch()}
+        className="h-8 rounded-md px-2 text-13 text-destructive hover:bg-destructive-subtle"
+      >
+        Couldn’t load projects. Retry
+      </button>
+    );
   }
 
   return (
@@ -28,9 +36,10 @@ export function ProjectSelector() {
         const project = projects.find((p) => p.id === id) ?? null;
         selectProject(project);
       }}
-      placeholder="Select project…"
-      searchPlaceholder="Search projects…"
-      className="h-9 w-52"
+      placeholder="Choose project"
+      searchPlaceholder="Search projects"
+      className="h-8 w-40 text-13 sm:w-52"
+      contentClassName="w-64"
     />
   );
 }

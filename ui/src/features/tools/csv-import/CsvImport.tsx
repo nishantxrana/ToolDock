@@ -10,7 +10,6 @@ import { ErrorBanner } from '@/components/common/ErrorBanner';
 import { VariableGroupPicker } from '@/components/common/VariableGroupPicker';
 import { RequireProject } from '@/components/common/RequireProject';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CsvDropzone } from './CsvDropzone';
 import { ImportPreviewTable, ImportPreviewTableWithControls } from './ImportPreviewTable';
@@ -88,7 +87,7 @@ export function CsvImport() {
     <RequireProject>
       <PageLayout
         title="CSV Import"
-        description="Import Key,Value pairs into a variable group. You review every change before anything is written."
+        description="Load Key,Value rows from a CSV into a variable group. You see every change, and confirm it, before anything is written to Azure DevOps."
         icon={FileSpreadsheet}
         actions={
           (csvText || group) && (
@@ -99,18 +98,22 @@ export function CsvImport() {
           )
         }
       >
-        <SectionCard title="Target variable group">
+        <SectionCard title="Import into">
           <VariableGroupPicker value={group?.id ?? null} onChange={(_, g) => setGroup(g)} />
         </SectionCard>
 
-        <SectionCard title="CSV file">
+        <SectionCard title="From CSV">
           {csvText ? (
-            <div className="flex items-center justify-between rounded-md border bg-muted/30 px-4 py-3">
-              <span className="font-mono text-sm">{csvName || 'pasted.csv'}</span>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">{parsed?.rows.length ?? 0} rows</Badge>
-                <Button variant="ghost" size="sm" onClick={reset}>
-                  Change file
+            <div className="flex items-center justify-between gap-3 rounded-md border bg-popover py-2 pl-3 pr-2">
+              <span className="min-w-0 truncate font-mono text-13 font-medium">
+                {csvName || 'pasted.csv'}
+              </span>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {parsed?.rows.length ?? 0} row{parsed?.rows.length === 1 ? '' : 's'}
+                </span>
+                <Button variant="outline" size="sm" onClick={reset}>
+                  Use a different file
                 </Button>
               </div>
             </div>
@@ -125,9 +128,8 @@ export function CsvImport() {
         </SectionCard>
 
         {parsed && parsed.warnings.length > 0 && (
-          <Callout variant="warning">
+          <Callout variant="warning" title="Some rows were skipped">
             <div>
-              <p className="mb-1 font-medium">CSV warnings</p>
               <ul className="list-inside list-disc space-y-0.5">
                 {parsed.warnings.map((w, i) => (
                   <li key={i}>{w}</li>
@@ -144,23 +146,21 @@ export function CsvImport() {
             <EmptyState
               icon={FileSpreadsheet}
               title="No rows to import"
-              description="The CSV did not contain any valid Key,Value rows."
+              description="The CSV has no usable Key,Value rows. Check that it has two columns separated by commas."
             />
           ) : (
             <SectionCard
-              title="Preview"
+              title="Review changes"
+              description={`${plan.counts.new} new, ${plan.counts.overwrite} overwritten, ${plan.counts.same} unchanged. Variables not in the CSV are kept.`}
               actions={
                 <div className="flex items-center gap-2">
-                  <Badge variant="warning">{plan.counts.overwrite} overwrite</Badge>
-                  <Badge variant="success">{plan.counts.new} new</Badge>
-                  <Badge variant="secondary">{plan.counts.same} same</Badge>
                   {writeDenied ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span tabIndex={0}>
                           <Button size="sm" disabled>
                             <Upload />
-                            Import…
+                            Import changes
                           </Button>
                         </span>
                       </TooltipTrigger>
@@ -172,7 +172,7 @@ export function CsvImport() {
                   ) : (
                     <Button size="sm" onClick={() => setConfirmOpen(true)}>
                       <Upload />
-                      Import…
+                      Import changes
                     </Button>
                   )}
                 </div>
@@ -180,8 +180,9 @@ export function CsvImport() {
             >
               {writeDenied && (
                 <Callout variant="warning" className="mb-3">
-                  Import is disabled - your PAT lacks the Variable Groups <strong>manage</strong>{' '}
-                  scope. You can still preview changes below.
+                  Your token can read this group but not change it, so importing is turned off.
+                  Reconnect with a token that has the Variable Groups{' '}
+                  <strong>Read, create, &amp; manage</strong> scope to import.
                 </Callout>
               )}
               <ImportPreviewTableWithControls rows={plan.rows} />
@@ -190,8 +191,8 @@ export function CsvImport() {
         ) : (
           <EmptyState
             icon={FileSpreadsheet}
-            title="Select a group and a CSV"
-            description="Choose a target variable group and upload a CSV to preview the changes."
+            title="Choose a group and a CSV"
+            description="The full list of changes appears here for you to review. Nothing is written until you confirm."
           />
         )}
       </PageLayout>
@@ -199,9 +200,9 @@ export function CsvImport() {
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`Import into "${group?.name}"?`}
-        description="This writes to Azure DevOps and cannot be undone from ToolDock."
-        confirmLabel={`Yes, import`}
+        title={`Import into ${group?.name}?`}
+        description="This writes to Azure DevOps. ToolDock can’t undo it, so check the overwritten values first."
+        confirmLabel={`Import ${(plan?.counts.new ?? 0) + (plan?.counts.overwrite ?? 0)} changes`}
         destructive={(plan?.counts.overwrite ?? 0) > 0}
         confirmDisabled={mutation.isPending}
         confirmLoading={mutation.isPending}
@@ -215,11 +216,6 @@ export function CsvImport() {
                 {plan.counts.overwrite === 1 ? '' : 's'} will be overwritten.
               </Callout>
             )}
-            <div className="flex gap-2 text-sm">
-              <Badge variant="warning">{plan.counts.overwrite} overwrite</Badge>
-              <Badge variant="success">{plan.counts.new} new</Badge>
-              <Badge variant="secondary">{plan.counts.same} unchanged</Badge>
-            </div>
             {/* Only show changed rows in the dialog - same rows add noise here. */}
             {dialogRows.length > 0 && <ImportPreviewTable rows={dialogRows} />}
           </div>
