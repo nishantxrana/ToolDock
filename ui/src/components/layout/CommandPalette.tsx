@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Command } from 'cmdk';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Home, LogOut, Monitor, Moon, PlugZap, Search, Sun } from 'lucide-react';
+import { Home, LogOut, Monitor, Moon, PlugZap, Search, Sun, Truck } from 'lucide-react';
+import { MIGRATIONS, MIGRATE_HOME } from '@/features/migrate/registry';
 import { TOOLS, toolsByGroup } from '@/features/tools/registry';
 import { useSessionStore } from '@/store/sessionStore';
 import { useTheme } from '@/lib/utils/theme';
@@ -59,7 +60,7 @@ export function CommandPalette() {
             // Every typed word must appear in the item, so "map" finds Mapping and nothing else.
             filter={(value, search) => {
               const v = value.toLowerCase();
-              const terms = search.toLowerCase().split(/s+/).filter(Boolean);
+              const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
               if (!terms.every((t) => v.includes(t))) return 0;
               return terms.some((t) => v.startsWith(t) || v.includes(` ${t}`)) ? 1 : 0.5;
             }}
@@ -96,6 +97,28 @@ export function CommandPalette() {
                   ))}
                 </Command.Group>
               ))}
+
+              <Command.Group heading="Migrate" className={groupClass}>
+                <Command.Item
+                  value="migrate overview move copy organization project"
+                  onSelect={() => run(() => navigate(MIGRATE_HOME))}
+                  className={itemClass}
+                >
+                  <Truck className="text-muted-foreground" />
+                  Migrate overview
+                </Command.Item>
+                {MIGRATIONS.map((m) => (
+                  <Command.Item
+                    key={m.id}
+                    value={`migrate ${m.title} ${m.description}`}
+                    onSelect={() => run(() => navigate(m.path))}
+                    className={itemClass}
+                  >
+                    <m.icon className="text-muted-foreground" />
+                    <span className="flex-1 truncate">Migrate {m.title.toLowerCase()}</span>
+                  </Command.Item>
+                ))}
+              </Command.Group>
 
               <Command.Group heading="General" className={groupClass}>
                 <Command.Item

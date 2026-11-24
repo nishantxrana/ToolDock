@@ -32,6 +32,39 @@ server {
     proxy_set_header Cookie "";
   }
 
+  # Read-only, pinned proxy to Jira Cloud (Jira to Boards migration). It only
+  # reaches {site}.atlassian.net, and only for GET plus POST to the issue
+  # search. Needs a resolver because the upstream host is per request.
+  resolver 1.1.1.1 8.8.8.8 valid=300s ipv6=off;
+  location ~ ^/jira/(?<jira_site>[a-z0-9][a-z0-9-]{0,62})/(?<jira_path>rest/.*)$ {
+    set $jira_allowed "no";
+    if ($request_method = GET) { set $jira_allowed "yes"; }
+    set $jira_search "$request_method:$jira_path";
+    if ($jira_search ~ "^POST:rest/api/3/search/jql/?$") { set $jira_allowed "yes"; }
+    if ($jira_allowed = "no") { return 405; }
+
+    proxy_pass https://$jira_site.atlassian.net/$jira_path$is_args$args;
+    proxy_set_header Host $jira_site.atlassian.net;
+    proxy_ssl_server_name on;
+    proxy_set_header Cookie "";
+    proxy_set_header Origin "";
+    proxy_set_header Referer "";
+  }
+
+  # Security headers. Keep the script hash in sync with the inline theme
+  # script in index.html (src/__tests__/securityHeaders.test.ts checks it).
+  add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-Eg8/MlDL6kRg7QFH/lZo/EhFZ+6BCO2CGIqSOSEPuQs='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'" always;
+  add_header Referrer-Policy "no-referrer" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "DENY" always;
+  add_header Cross-Origin-Opener-Policy "same-origin" always;
+  add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), hid=(), midi=(), display-capture=()" always;
+  add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+
+  # Note: unlike the Vercel middleware, this config doesn't filter Azure DevOps
+  # write methods by path; the token's scopes still apply. Add limit_except
+  # rules if you need that here.
+
   # SPA fallback.
   location / {
     try_files $uri $uri/ /index.html;

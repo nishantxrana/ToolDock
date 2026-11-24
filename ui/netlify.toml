@@ -25,3 +25,22 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Security headers. Keep the script hash in sync with the inline theme script
+# in index.html (src/__tests__/securityHeaders.test.ts checks this).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'sha256-Eg8/MlDL6kRg7QFH/lZo/EhFZ+6BCO2CGIqSOSEPuQs='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; object-src 'none'"
+    Referrer-Policy = "no-referrer"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), hid=(), midi=(), display-capture=(), interest-cohort=()"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains"
+
+# Not available on Netlify:
+#  - The /jira proxy (Jira to Boards migration). Netlify redirects can't target
+#    a per-request host, so use Vercel, nginx or the dev server for that one.
+#  - The method + path allow-list from middleware.ts (Vercel only). Netlify
+#    forwards any method to Azure DevOps; the token's scopes still apply.

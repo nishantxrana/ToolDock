@@ -7,6 +7,9 @@ import type {
 } from '@/types/ado';
 import { adoRequest } from './client';
 
+/** Explicit credential for Migrate mode; omitted, the Tools-mode session is used. */
+type Cred = { pat: string } | undefined;
+
 /**
  * List variable groups in a project.
  * GET /{org}/{project}/_apis/distributedtask/variablegroups?api-version=7.2-preview.2
@@ -15,10 +18,11 @@ export async function listVariableGroups(
   organization: string,
   project: string,
   signal?: AbortSignal,
+  cred?: Cred,
 ): Promise<VariableGroup[]> {
   const data = await adoRequest<AdoListResponse<VariableGroup>>(
     [organization, project, '_apis', 'distributedtask', 'variablegroups'],
-    { query: { 'api-version': API_VERSION_VARIABLE_GROUPS }, signal },
+    { query: { 'api-version': API_VERSION_VARIABLE_GROUPS }, signal, credential: cred },
   );
   return [...data.value].sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -32,10 +36,11 @@ export async function getVariableGroup(
   project: string,
   groupId: number,
   signal?: AbortSignal,
+  cred?: Cred,
 ): Promise<VariableGroup> {
   return adoRequest<VariableGroup>(
     [organization, project, '_apis', 'distributedtask', 'variablegroups', String(groupId)],
-    { query: { 'api-version': API_VERSION_VARIABLE_GROUPS }, signal },
+    { query: { 'api-version': API_VERSION_VARIABLE_GROUPS }, signal, credential: cred },
   );
 }
 
@@ -100,12 +105,14 @@ export interface VariableGroupCreateBody {
 export async function createVariableGroup(
   organization: string,
   body: VariableGroupCreateBody,
+  cred?: Cred,
 ): Promise<VariableGroup> {
   return adoRequest<VariableGroup>([organization, '_apis', 'distributedtask', 'variablegroups'], {
     method: 'POST',
     query: { 'api-version': API_VERSION_VARIABLE_GROUPS },
     body,
     errorContext: 'write',
+    credential: cred,
   });
 }
 
@@ -121,8 +128,9 @@ export async function addVariablesToGroup(
   project: string,
   groupId: number,
   additions: VariableMap,
+  cred?: Cred,
 ): Promise<{ group: VariableGroup; added: string[]; skipped: string[] }> {
-  const current = await getVariableGroup(organization, project, groupId);
+  const current = await getVariableGroup(organization, project, groupId, undefined, cred);
   const existing = new Set(Object.keys(current.variables ?? {}).map((k) => k.toLowerCase()));
   const next: VariableMap = { ...current.variables };
   const added: string[] = [];
@@ -150,6 +158,7 @@ export async function addVariablesToGroup(
       query: { 'api-version': API_VERSION_VARIABLE_GROUPS },
       body,
       errorContext: 'write',
+      credential: cred,
     },
   );
   return { group, added, skipped };

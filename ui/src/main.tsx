@@ -4,6 +4,7 @@ import { App } from './App';
 import { initTheme } from '@/lib/utils/theme';
 import { loadLockedPat } from '@/lib/utils/patVault';
 import { useSessionStore } from '@/store/sessionStore';
+import { restoreMigrationLocks } from '@/features/migrate/locks';
 import './index.css';
 
 (async () => {
@@ -21,6 +22,8 @@ import './index.css';
   } catch {
     // IDB unavailable (private browsing, browser restriction) - silently skip.
   }
+  // Migrate-mode connections the user locked for 30 minutes.
+  await restoreMigrationLocks();
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>

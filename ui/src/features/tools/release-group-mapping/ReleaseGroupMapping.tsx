@@ -24,6 +24,7 @@ import { safeFilename } from '@/lib/utils/download';
 import { exportReleaseMappingXlsx, type ReleaseMappingRow } from '@/lib/utils/xlsx';
 import { useReleaseMapping } from '@/lib/hooks/useReleaseMapping';
 import { useSessionStore } from '@/store/sessionStore';
+import { ProgressBar } from '@/components/common/ProgressBar';
 
 export function ReleaseGroupMapping() {
   const organization = useSessionStore((s) => s.organization);
@@ -95,12 +96,7 @@ export function ReleaseGroupMapping() {
         {isLoading && (
           <SectionCard title="Reading release pipelines">
             <div className="space-y-2" role="status" aria-live="polite">
-              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
+              <ProgressBar value={pct} label="Reading release pipelines" />
               <p className="text-13 text-muted-foreground">
                 {progress && progress.total > 0
                   ? `${progress.done} of ${progress.total} pipelines read`

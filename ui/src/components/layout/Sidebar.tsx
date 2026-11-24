@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
-import { LogOut, PlugZap, Search, X } from 'lucide-react';
+import { Link, NavLink, useLocation } from 'react-router-dom';
+import { LayoutGrid, LogOut, PlugZap, Search, X } from 'lucide-react';
+import { MIGRATIONS, MIGRATE_HOME, isMigratePath } from '@/features/migrate/registry';
+import { MigrationConnectionsSummary } from '@/features/migrate/components/MigrationConnectionsSummary';
+
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { TOOLS, toolsByGroup } from '@/features/tools/registry';
 import { unlockPat } from '@/lib/utils/patVault';
@@ -91,6 +94,8 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
   const isConnected = useSessionStore((s) => s.isConnected);
   const searchRef = useRef<HTMLInputElement>(null);
   useSlashFocus(searchRef);
+  const { pathname } = useLocation();
+  const migrate = isMigratePath(pathname);
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -105,6 +110,21 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
       }))
       .filter((g) => g.tools.length > 0);
   }, [query]);
+
+  const migrations = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return MIGRATIONS.filter(
+      (m) => !q || m.title.toLowerCase().includes(q) || m.description.toLowerCase().includes(q),
+    );
+  }, [query]);
+
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    cn(
+      'flex items-center gap-2.5 rounded-md px-2 py-[7px] text-sm transition-colors',
+      isActive
+        ? 'bg-accent font-medium text-accent-foreground shadow-[inset_2px_0_0_hsl(var(--primary))]'
+        : 'text-sidebar-foreground/80 hover:bg-foreground/[0.05] hover:text-sidebar-foreground',
+    );
 
   return (
     <aside
@@ -125,8 +145,8 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && (setQuery(''), e.currentTarget.blur())}
-            placeholder="Find a tool"
-            aria-label="Find a tool"
+            placeholder={migrate ? 'Find a migration' : 'Find a tool'}
+            aria-label={migrate ? 'Find a migration' : 'Find a tool'}
             className="h-9 w-full rounded-md border border-sidebar-border bg-background/60 pl-8 pr-8 text-sm placeholder:text-muted-foreground/70 focus:border-primary/60 focus:outline-none"
           />
           {query ? (
@@ -144,55 +164,89 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
         </div>
       </div>
 
-      <nav className="flex-1 space-y-5 overflow-y-auto scrollbar-thin px-3 py-3">
-        {groups.length === 0 && (
-          <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-            No tool matches “{query}”.
-          </p>
-        )}
-        {groups.map(({ group, tools }) => (
-          <div key={group}>
-            <p className="px-2 pb-1 text-xs font-semibold text-muted-foreground">{group}</p>
+      {migrate ? (
+        <nav className="flex-1 space-y-5 overflow-y-auto scrollbar-thin px-3 py-3">
+          <div>
+            <p className="px-2 pb-1 text-xs font-semibold text-muted-foreground">Migrate</p>
             <ul className="space-y-px">
-              {tools.map((tool) => {
-                const needsConnect = tool.requiresConnection && !isConnected;
-                return (
-                  <li key={tool.id}>
-                    <NavLink
-                      to={tool.path}
-                      onClick={onNavigate}
-                      title={tool.title}
-                      className={({ isActive }) =>
-                        cn(
-                          'flex items-center gap-2.5 rounded-md px-2 py-[7px] text-sm transition-colors',
-                          isActive
-                            ? 'bg-accent font-medium text-accent-foreground shadow-[inset_2px_0_0_hsl(var(--primary))]'
-                            : 'text-sidebar-foreground/80 hover:bg-foreground/[0.05] hover:text-sidebar-foreground',
-                          needsConnect && !isActive && 'text-sidebar-foreground/55',
-                        )
-                      }
-                    >
-                      <tool.icon className="h-4 w-4 flex-shrink-0 opacity-80" />
-                      <span className="flex-1 truncate">{tool.title}</span>
-                      {!tool.requiresConnection && !isConnected && (
-                        <span
-                          className="rounded-sm border border-success-border bg-success-subtle px-1 text-2xs font-medium text-success"
-                          title="Works without a connection"
-                        >
-                          offline
-                        </span>
-                      )}
-                    </NavLink>
-                  </li>
-                );
-              })}
+              <li>
+                <NavLink to={MIGRATE_HOME} end onClick={onNavigate} className={navLinkClass}>
+                  <LayoutGrid className="h-4 w-4 flex-shrink-0 opacity-80" />
+                  <span className="flex-1 truncate">Overview</span>
+                </NavLink>
+              </li>
+              {migrations.map((m) => (
+                <li key={m.id}>
+                  <NavLink
+                    to={m.path}
+                    onClick={onNavigate}
+                    title={m.title}
+                    className={navLinkClass}
+                  >
+                    <m.icon className="h-4 w-4 flex-shrink-0 opacity-80" />
+                    <span className="flex-1 truncate">{m.title}</span>
+                  </NavLink>
+                </li>
+              ))}
             </ul>
+            {migrations.length === 0 && (
+              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                No migration matches “{query}”.
+              </p>
+            )}
           </div>
-        ))}
-      </nav>
+        </nav>
+      ) : (
+        <nav className="flex-1 space-y-5 overflow-y-auto scrollbar-thin px-3 py-3">
+          {groups.length === 0 && (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+              No tool matches “{query}”.
+            </p>
+          )}
+          {groups.map(({ group, tools }) => (
+            <div key={group}>
+              <p className="px-2 pb-1 text-xs font-semibold text-muted-foreground">{group}</p>
+              <ul className="space-y-px">
+                {tools.map((tool) => {
+                  const needsConnect = tool.requiresConnection && !isConnected;
+                  return (
+                    <li key={tool.id}>
+                      <NavLink
+                        to={tool.path}
+                        onClick={onNavigate}
+                        title={tool.title}
+                        className={({ isActive }) =>
+                          cn(
+                            'flex items-center gap-2.5 rounded-md px-2 py-[7px] text-sm transition-colors',
+                            isActive
+                              ? 'bg-accent font-medium text-accent-foreground shadow-[inset_2px_0_0_hsl(var(--primary))]'
+                              : 'text-sidebar-foreground/80 hover:bg-foreground/[0.05] hover:text-sidebar-foreground',
+                            needsConnect && !isActive && 'text-sidebar-foreground/55',
+                          )
+                        }
+                      >
+                        <tool.icon className="h-4 w-4 flex-shrink-0 opacity-80" />
+                        <span className="flex-1 truncate">{tool.title}</span>
+                        {!tool.requiresConnection && !isConnected && (
+                          <span
+                            className="rounded-sm border border-success-border bg-success-subtle px-1 text-2xs font-medium text-success"
+                            title="Works without a connection"
+                          >
+                            offline
+                          </span>
+                        )}
+                      </NavLink>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </nav>
+      )}
 
       <div className="space-y-3 border-t border-sidebar-border p-3">
-        <ConnectionPanel onNavigate={onNavigate} />
+        {migrate ? <MigrationConnectionsSummary /> : <ConnectionPanel onNavigate={onNavigate} />}
         <div className="flex items-center justify-between gap-2 pl-1 text-xs text-muted-foreground">
           <a
             href={PORTFOLIO_URL}
