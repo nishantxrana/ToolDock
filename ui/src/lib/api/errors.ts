@@ -39,8 +39,12 @@ export function errorFromStatus(
   retryAfter?: number,
   context: AdoErrorContext = 'read',
   serverMessage?: string,
+  scopeHint?: string,
 ): AdoError {
   const isWrite = context === 'write';
+  const writeScopeMessage = scopeHint
+    ? `Your token is valid but can't make this change. It needs the "${scopeHint}" scope (and matching permissions).`
+    : WRITE_SCOPE_MESSAGE;
   switch (status) {
     case 400:
     case 409:
@@ -53,7 +57,7 @@ export function errorFromStatus(
       return new AdoError(
         'unauthorized',
         isWrite
-          ? WRITE_SCOPE_MESSAGE
+          ? writeScopeMessage
           : 'Your PAT is invalid or expired. Reconnect with a valid token.',
         status,
       );
@@ -61,8 +65,10 @@ export function errorFromStatus(
       return new AdoError(
         'forbidden',
         isWrite
-          ? WRITE_SCOPE_MESSAGE
-          : 'Permission denied. Ensure your PAT has the required Variable Groups and Project (Read) scopes.',
+          ? writeScopeMessage
+          : scopeHint
+            ? `Permission denied. The token needs the "${scopeHint}" scope.`
+            : 'Permission denied. Ensure your PAT has the required Variable Groups and Project (Read) scopes.',
         status,
       );
     case 404:
@@ -83,7 +89,7 @@ export function errorFromStatus(
     default:
       return new AdoError(
         'unknown',
-        `Azure DevOps returned an unexpected error (HTTP ${status}).`,
+        serverMessage ?? `The server returned an unexpected error (HTTP ${status}).`,
         status,
       );
   }

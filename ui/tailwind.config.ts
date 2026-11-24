@@ -110,10 +110,16 @@ const config: Config = {
           from: { height: 'var(--radix-accordion-content-height)' },
           to: { height: '0' },
         },
+        // Soft halo for a token lock in its last five minutes.
+        'lock-pulse': {
+          '0%, 100%': { boxShadow: '0 0 0 0 hsl(var(--destructive) / 0.35)' },
+          '50%': { boxShadow: '0 0 0 4px hsl(var(--destructive) / 0)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        'lock-pulse': 'lock-pulse 2s ease-in-out infinite',
       },
     },
   },

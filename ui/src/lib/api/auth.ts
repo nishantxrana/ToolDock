@@ -10,3 +10,14 @@ export function buildAuthHeader(pat: string): string {
   const token = btoa(`:${pat}`);
   return `Basic ${token}`;
 }
+
+/**
+ * Jira Cloud API-token auth: HTTP Basic with the account email and the token.
+ * Built per request and never stored or logged.
+ */
+export function buildJiraAuthHeader(email: string, token: string): string {
+  const bytes = new TextEncoder().encode(`${email}:${token}`);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return `Basic ${btoa(bin)}`;
+}

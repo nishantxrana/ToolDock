@@ -442,3 +442,105 @@ export async function exportMultiGroupXlsx(
 
   await downloadWorkbook(workbook, filename);
 }
+
+// ---------------------------------------------------------------------------
+// Migration report
+// ---------------------------------------------------------------------------
+
+export interface MigrationReportSheetRow {
+  area: string;
+  title: string;
+  detail: string;
+  targetUrl?: string;
+  sourceUrl?: string;
+}
+
+export interface MigrationReportInput {
+  title: string;
+  summary: [string, string][];
+  sheets: {
+    name: string;
+    tone: 'action' | 'warning' | 'info' | 'failed';
+    rows: MigrationReportSheetRow[];
+  }[];
+}
+
+const REPORT_TONE: Record<MigrationReportInput['sheets'][number]['tone'], string> = {
+  action: 'FFFFF2CC',
+  warning: 'FFFCE4D6',
+  info: 'FFF2F2F2',
+  failed: 'FFF4CCCC',
+};
+
+/** Migration report: a Summary sheet, then one sheet per severity with clickable links. */
+export async function exportMigrationReportXlsx(
+  filename: string,
+  input: MigrationReportInput,
+): Promise<void> {
+  const mod = await import('exceljs');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { Workbook } = ((mod as any).default ?? mod) as typeof import('exceljs');
+  const workbook = new Workbook();
+
+  const summary = workbook.addWorksheet('Summary');
+  summary.mergeCells('A1:B1');
+  const title = summary.getCell('A1');
+  title.value = input.title;
+  title.fill = NAVY;
+  title.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+  title.border = ALL_BORDERS;
+  summary.getRow(1).height = 22;
+  input.summary.forEach(([k, v], i) => {
+    const row = summary.getRow(i + 2);
+    row.getCell(1).value = k;
+    row.getCell(1).font = { bold: true };
+    row.getCell(2).value = v;
+    row.getCell(1).border = ALL_BORDERS;
+    row.getCell(2).border = ALL_BORDERS;
+  });
+  summary.getColumn(1).width = 22;
+  summary.getColumn(2).width = 80;
+
+  for (const sheet of input.sheets) {
+    if (sheet.rows.length === 0) continue;
+    const ws = workbook.addWorksheet(safeSheetName(sheet.name));
+    const headers = ['Area', 'Item', 'Detail', 'Open in target', 'Source'];
+    const head = ws.getRow(1);
+    headers.forEach((h, i) => {
+      const cell = head.getCell(i + 1);
+      cell.value = h;
+      cell.fill = NAVY;
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.border = ALL_BORDERS;
+    });
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    sheet.rows.forEach((r, i) => {
+      const row = ws.getRow(i + 2);
+      row.getCell(1).value = r.area;
+      row.getCell(2).value = r.title;
+      row.getCell(3).value = r.detail;
+      if (r.targetUrl) row.getCell(4).value = { text: 'Open', hyperlink: r.targetUrl };
+      if (r.sourceUrl) row.getCell(5).value = { text: 'Source', hyperlink: r.sourceUrl };
+      for (let c = 1; c <= 5; c++) {
+        const cell = row.getCell(c);
+        cell.border = ALL_BORDERS;
+        cell.alignment = { vertical: 'top', wrapText: c === 3 };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: REPORT_TONE[sheet.tone] },
+        };
+      }
+      for (const c of [4, 5]) {
+        if (row.getCell(c).value)
+          row.getCell(c).font = { color: { argb: 'FF0563C1' }, underline: true };
+      }
+    });
+    ws.getColumn(1).width = 16;
+    ws.getColumn(2).width = 36;
+    ws.getColumn(3).width = 80;
+    ws.getColumn(4).width = 16;
+    ws.getColumn(5).width = 12;
+  }
+  await downloadWorkbook(workbook, filename);
+}
