@@ -55,6 +55,8 @@ Secret values can't be read from Azure DevOps, so exports keep secret, empty, an
 
 The **Tools | Migrate** switch in the header opens Migrate mode: guided migrations from one Azure DevOps project or organization to another, or from Jira Cloud into Azure Boards. Use the same organization and token on both sides to move between projects. Migration screens need a screen at least 1024 px wide.
 
+> **Full guide: [MIGRATION.md](MIGRATION.md)**. Every screen and field of each migration explained with examples, token scopes per side, the lock timer, resuming, the report, a recommended order for a full project move, and troubleshooting.
+
 | Migration           | Copies                                                                                                             | Doesn't copy (listed in the report)                                                                                                               |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Variable groups** | Groups and variables; secrets created empty (or left out); merge into same-named groups optional                   | Secret values, Key Vault-linked groups (shown disabled), permissions                                                                              |

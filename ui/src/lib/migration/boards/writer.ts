@@ -10,7 +10,6 @@ import {
   uploadAttachment,
   type ClassificationNode,
   type NodeGroup,
-  type PatchOp,
   type WitField,
   type WitType,
 } from '@/lib/api/migrate/wit';
@@ -330,32 +329,32 @@ export async function writeWorkItems(api: WriterApi, ctx: WriterContext) {
   const ids = await api.idMap('workitem');
 
   // 3. Attachments and comments.
-  if (ctx.copyAttachments || ctx.copyComments) {
-    let commentFailures = 0;
-    let attachmentFailures = 0;
+  // One task per attachment: a failed one shows in the report's Failed list
+  // with its reason, and "Retry failed" redoes only that file.
+  if (ctx.copyAttachments) {
     await api.phase(
-      'Copying attachments and comments',
+      'Copying attachments',
       items
-        .filter(
-          (i) =>
-            ids.has(i.sourceKey) &&
-            ((ctx.copyAttachments && i.attachments.length) || ctx.copyComments),
-        )
-        .map((item) => ({
-          key: `extras:${item.sourceKey}`,
-          label: `${item.sourceKey}: attachments and comments`,
-          journal: { kind: 'extras', sourceId: item.sourceKey },
-          run: async () => {
-            const id = Number(ids.get(item.sourceKey));
-            const notes: string[] = [];
-            if (ctx.copyAttachments && item.attachments.length) {
-              const rels: PatchOp[] = [];
-              for (const a of item.attachments) {
-                try {
-                  if (a.size && a.size > 130 * 1024 * 1024) throw new Error('over 130 MB');
-                  const blob = await downloadBlob(ctx.source, a.url, api.signal);
-                  const up = await uploadAttachment(target, tProject.id, a.name, blob);
-                  rels.push({
+        .filter((i) => ids.has(i.sourceKey))
+        .flatMap((item) =>
+          item.attachments.map((a) => ({
+            key: `att:${item.sourceKey}|${a.url}`,
+            label: `${item.sourceKey}: ${a.name}`,
+            journal: { kind: 'attachment', sourceId: `${item.sourceKey}|${a.url}` },
+            run: async () => {
+              if (a.size && a.size > 130 * 1024 * 1024) {
+                return {
+                  status: 'failed' as const,
+                  message: 'Over 130 MB, the largest file this tool uploads. Attach it by hand.',
+                };
+              }
+              const blob = await downloadBlob(ctx.source, a.url, api.signal);
+              const up = await uploadAttachment(target, tProject.id, a.name, blob);
+              await updateWorkItem(
+                target,
+                Number(ids.get(item.sourceKey)),
+                [
+                  {
                     op: 'add',
                     path: '/relations/-',
                     value: {
@@ -363,47 +362,63 @@ export async function writeWorkItems(api: WriterApi, ctx: WriterContext) {
                       url: up.url,
                       attributes: { comment: 'Migrated' },
                     },
-                  });
-                } catch (e) {
-                  attachmentFailures++;
-                  notes.push(
-                    `attachment "${a.name}" not copied (${e instanceof Error ? e.message : 'error'})`,
-                  );
-                }
+                  },
+                ],
+                { suppressNotifications: true },
+              );
+              return {
+                status: 'ok' as const,
+                message: `${Math.max(1, Math.round(blob.size / 1024))} KB`,
+              };
+            },
+          })),
+        ),
+    );
+  }
+
+  if (ctx.copyComments) {
+    let commentFailures = 0;
+    await api.phase(
+      'Copying comments',
+      items
+        .filter((i) => ids.has(i.sourceKey))
+        .map((item) => ({
+          key: `comments:${item.sourceKey}`,
+          label: `${item.sourceKey}: comments`,
+          journal: { kind: 'comments', sourceId: item.sourceKey },
+          run: async () => {
+            const id = Number(ids.get(item.sourceKey));
+            const comments = await ctx.loadComments(item);
+            if (comments.length === 0)
+              return { status: 'skipped' as const, message: 'No comments.' };
+            let failed = 0;
+            for (const c of comments) {
+              try {
+                const body = await rewriteImages(c.html);
+                const when = c.date ? new Date(c.date).toLocaleString() : '';
+                await addComment(
+                  target,
+                  tProject.id,
+                  id,
+                  `<p><b>${escapeHtml(c.author)}</b>${when ? ` · ${escapeHtml(when)}` : ''}</p>${body}`,
+                );
+              } catch {
+                failed++;
+                commentFailures++;
               }
-              if (rels.length)
-                await updateWorkItem(target, id, rels, { suppressNotifications: true });
             }
-            if (ctx.copyComments) {
-              const comments = await ctx.loadComments(item);
-              for (const c of comments) {
-                try {
-                  const body = await rewriteImages(c.html);
-                  const when = c.date ? new Date(c.date).toLocaleString() : '';
-                  await addComment(
-                    target,
-                    tProject.id,
-                    id,
-                    `<p><b>${escapeHtml(c.author)}</b>${when ? ` · ${escapeHtml(when)}` : ''}</p>${body}`,
-                  );
-                } catch {
-                  commentFailures++;
+            return failed
+              ? {
+                  status: 'warning' as const,
+                  message: `${failed} of ${comments.length} comments not added.`,
                 }
-              }
-            }
-            return notes.length
-              ? { status: 'warning' as const, message: notes.join('; ') }
-              : { status: 'ok' as const };
+              : {
+                  status: 'ok' as const,
+                  message: `${comments.length} comment${comments.length === 1 ? '' : 's'}`,
+                };
           },
         })),
     );
-    if (attachmentFailures)
-      api.report({
-        area,
-        severity: 'warning',
-        title: 'Attachments not copied',
-        detail: `${attachmentFailures} attachment${attachmentFailures === 1 ? '' : 's'} couldn't be copied (see the failures and warnings in the log).`,
-      });
     if (commentFailures)
       api.report({
         area,

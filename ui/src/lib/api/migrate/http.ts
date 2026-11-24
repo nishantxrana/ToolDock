@@ -1,4 +1,9 @@
-import { adoRequestWithMeta, fetchServiceBlob, type RequestOptions } from '@/lib/api/client';
+import {
+  adoRequestWithMeta,
+  directJiraDownload,
+  fetchServiceBlob,
+  type RequestOptions,
+} from '@/lib/api/client';
 import { AdoError } from '@/lib/api/errors';
 import type { AdoCredential, JiraCredential } from '@/store/migrationStore';
 
@@ -156,7 +161,7 @@ export function downloadBlob(
 ): Promise<Blob> {
   return withRetries('GET', signal, async () => ({
     data: await fetchServiceBlob(
-      absoluteUrl,
+      'ado' in auth ? absoluteUrl : directJiraDownload(absoluteUrl),
       'ado' in auth
         ? { credential: auth.ado, signal }
         : { jira: { email: auth.jira.email, token: auth.jira.token }, signal },

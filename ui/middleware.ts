@@ -129,18 +129,23 @@ async function proxyJira(request: Request, upstream: string, search: string): Pr
     body: request.method === 'POST' ? await request.text() : undefined,
     redirect: 'manual',
   });
-  // Attachment downloads redirect to Atlassian's media service with a signed
-  // URL. Follow it here, without the user's credentials, and only to Atlassian.
-  const location = res.headers.get('location');
-  if (request.method === 'GET' && res.status >= 300 && res.status < 400 && location) {
-    const next = new URL(location, upstream);
-    if (next.protocol === 'https:' && /(^|\.)atlassian\.(com|net)$/i.test(next.hostname)) {
-      res = await fetch(next.toString(), { redirect: 'manual' });
-    }
+  // The app asks for attachments with ?redirect=false, but if Jira still
+  // redirects to its media service (a signed URL, sometimes more than one hop),
+  // follow it here: never with the user's credentials, and only to Atlassian.
+  let current = new URL(`${upstream}${search}`);
+  for (let hop = 0; hop < 3 && request.method === 'GET'; hop++) {
+    const location = res.headers.get('location');
+    if (res.status < 300 || res.status >= 400 || !location) break;
+    const next = new URL(location, current);
+    if (next.protocol !== 'https:' || !/(^|\.)atlassian\.(com|net)$/i.test(next.hostname)) break;
+    current = next;
+    res = await fetch(next.toString(), { redirect: 'manual' });
   }
   const out = new Headers();
   for (const name of [
     'content-type',
+    'content-length',
+    'content-disposition',
     'retry-after',
     'x-ratelimit-limit',
     'x-ratelimit-remaining',
@@ -149,8 +154,8 @@ async function proxyJira(request: Request, upstream: string, search: string): Pr
     const v = res.headers.get(name);
     if (v) out.set(name, v);
   }
-  // Atlassian redirects attachment downloads to its media host; pass the
-  // redirect status through rather than following it with the user's token.
+  // A redirect we didn't follow (non-Atlassian host) goes back without its
+  // Location, so the client reports it rather than following it.
   return new Response(res.body, { status: res.status, headers: out });
 }
 

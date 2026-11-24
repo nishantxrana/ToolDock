@@ -13,6 +13,8 @@ export interface RequestOptions {
   rawBody?: BodyInit;
   /** Content type for `body` / `rawBody`. Defaults to application/json. */
   contentType?: string;
+  /** Accept header. Defaults to application/json; file downloads use any type. */
+  accept?: string;
   /** Override the PAT (used during connect validation, before the store is set). */
   patOverride?: string;
   /** Explicit Azure DevOps credential (Migrate mode). Never reads the session. */
@@ -137,7 +139,7 @@ async function send(url: string, options: RequestOptions): Promise<Response> {
 
   const headers: Record<string, string> = {
     Authorization: authHeader(options),
-    Accept: 'application/json',
+    Accept: options.accept ?? 'application/json',
   };
   if (body !== undefined || rawBody !== undefined) {
     headers['Content-Type'] = contentType ?? 'application/json';
@@ -235,8 +237,39 @@ export async function fetchServiceBlob(
       `Refused to fetch a link outside Azure DevOps or Jira: ${absoluteUrl}`,
     );
   }
-  const res = await send(url, options);
+  // Files, not JSON: Jira refuses attachment downloads that only accept JSON.
+  const res = await send(url, { ...options, accept: '*/*' });
+  // Jira answers attachment downloads with a redirect to its media service when
+  // ?redirect=false isn't honoured; never hand a redirect back as the file.
+  if (res.status >= 300 || res.type === 'opaqueredirect') {
+    throw new AdoError(
+      'unknown',
+      `The download was redirected instead of returning the file (HTTP ${res.status}).`,
+      res.status,
+    );
+  }
   return res.blob();
+}
+
+/**
+ * Jira attachment URLs: ask for the bytes directly instead of a redirect to
+ * Atlassian's media service (which a proxy would have to follow, possibly
+ * across several hosts). Other URLs are returned unchanged.
+ */
+export function directJiraDownload(url: string): string {
+  try {
+    const u = new URL(url);
+    if (
+      /\.atlassian\.net$/i.test(u.hostname) &&
+      /\/rest\/api\/\d+\/attachment\/(content|thumbnail)\//.test(u.pathname)
+    ) {
+      u.searchParams.set('redirect', 'false');
+      return u.toString();
+    }
+  } catch {
+    // not a URL - leave it as is
+  }
+  return url;
 }
 
 /** GET an absolute service URL (e.g. a paged `next` link) through the proxy as JSON. */
