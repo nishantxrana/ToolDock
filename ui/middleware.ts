@@ -2,8 +2,9 @@
  * Vercel Edge Middleware - runs before the /ado/* and /vsrm/* proxy rewrites.
  *
  * Three protections:
- *  1. Method allow-list - only GET and PUT pass through (GET = all reads,
- *     PUT = CSV Import variable group update).
+ *  1. Method allow-list - GET and PUT pass through (GET = all reads, PUT =
+ *     variable group updates). POST is allowed for exactly one path, the
+ *     create-variable-group endpoint used by Copy Group to Project.
  *  2. Origin / Referer check - rejects requests whose Origin or Referer
  *     header does not match the app's own domain. Skipped when
  *     ALLOWED_ORIGIN is not set (local dev).
@@ -20,6 +21,14 @@
  */
 
 const ALLOWED_METHODS = new Set(['GET', 'PUT', 'OPTIONS']);
+
+/** /ado/{org}/_apis/distributedtask/variablegroups (no id, no further segments). */
+const CREATE_GROUP_PATH = /^\/ado\/[^/]+\/_apis\/distributedtask\/variablegroups\/?$/i;
+
+export function isMethodAllowed(method: string, pathname: string): boolean {
+  if (ALLOWED_METHODS.has(method)) return true;
+  return method === 'POST' && CREATE_GROUP_PATH.test(pathname);
+}
 
 function getAllowedOrigins(): string[] {
   const origins: string[] = [];
@@ -50,7 +59,7 @@ export default function middleware(request: Request): Response | void {
     return new Response(null, { status: 204 });
   }
 
-  if (!ALLOWED_METHODS.has(request.method)) {
+  if (!isMethodAllowed(request.method, new URL(request.url).pathname)) {
     return new Response('Method Not Allowed', { status: 405 });
   }
 

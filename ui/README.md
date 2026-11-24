@@ -24,6 +24,8 @@ Click any Azure DevOps tool to open the inline connect form, enter organization 
 | `npm run typecheck` | Strict TypeScript, no emit                                   |
 | `npm run lint`      | ESLint with `--max-warnings 0`                               |
 | `npm run format`    | Prettier on `src/**/*.{ts,tsx,css}`                          |
+| `npm test`          | Vitest unit tests                                            |
+| `npm run contrast`  | Theme contrast check (WCAG 2 + APCA)                         |
 
 ## CORS proxy
 

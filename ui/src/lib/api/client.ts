@@ -96,10 +96,22 @@ export async function adoRequest<T>(
   if (!res.ok) {
     const retryAfterHeader = res.headers.get('Retry-After');
     const retryAfter = retryAfterHeader ? Number(retryAfterHeader) : undefined;
+    // Azure DevOps explains validation failures (e.g. a duplicate group name) in a
+    // JSON body: { message: "..." }. Keep it so the user sees the real reason.
+    let serverMessage: string | undefined;
+    if (res.status === 400 || res.status === 409) {
+      try {
+        const data = (await res.json()) as { message?: unknown };
+        if (typeof data.message === 'string') serverMessage = data.message;
+      } catch {
+        // not JSON - fall back to the generic message
+      }
+    }
     throw errorFromStatus(
       res.status,
       Number.isNaN(retryAfter) ? undefined : retryAfter,
       errorContext,
+      serverMessage,
     );
   }
 

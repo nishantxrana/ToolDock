@@ -1,4 +1,7 @@
 import {
+  CopyPlus,
+  ListPlus,
+  SearchCode,
   ArrowDownAZ,
   CopyCheck,
   Diff,
@@ -23,6 +26,9 @@ import { DuplicateFinder } from './duplicate-finder/DuplicateFinder';
 import { SortAppSettings } from './sort-appsettings/SortAppSettings';
 import { VariableGroupDiff } from './variable-group-diff/VariableGroupDiff';
 import { MultiGroupCompare } from './multi-group-compare/MultiGroupCompare';
+import { VariableSearch } from './variable-search/VariableSearch';
+import { CopyMissingKeys } from './copy-missing-keys/CopyMissingKeys';
+import { CopyGroup } from './copy-group/CopyGroup';
 
 /**
  * The single source of truth for tools. The sidebar and routes are generated
@@ -30,6 +36,16 @@ import { MultiGroupCompare } from './multi-group-compare/MultiGroupCompare';
  * component. Built to scale to dozens of tools.
  */
 export const TOOLS: readonly ToolDefinition[] = [
+  {
+    id: 'variable-search',
+    title: 'Variable Search',
+    description: 'Find a key or value across every variable group in the project.',
+    icon: SearchCode,
+    group: 'Variable Groups',
+    path: '/tools/variable-search',
+    component: VariableSearch,
+    requiresConnection: true,
+  },
   {
     id: 'generate-appsettings',
     title: 'Generate App Service Settings',
@@ -75,6 +91,17 @@ export const TOOLS: readonly ToolDefinition[] = [
     requiresConnection: true,
   },
   {
+    id: 'copy-missing-keys',
+    title: 'Copy Missing Keys',
+    description: 'Add the keys one variable group has and another lacks, after reviewing each one.',
+    icon: ListPlus,
+    group: 'Variable Groups',
+    path: '/tools/copy-missing-keys',
+    component: CopyMissingKeys,
+    requiresConnection: true,
+    writesToAdo: true,
+  },
+  {
     id: 'csv-import',
     title: 'CSV Import',
     description:
@@ -83,6 +110,18 @@ export const TOOLS: readonly ToolDefinition[] = [
     group: 'Variable Groups',
     path: '/tools/csv-import',
     component: CsvImport,
+    requiresConnection: true,
+    writesToAdo: true,
+  },
+  {
+    id: 'copy-group',
+    title: 'Copy Group to Project',
+    description:
+      'Create a copy of a variable group in another project, or in this one under a new name.',
+    icon: CopyPlus,
+    group: 'Variable Groups',
+    path: '/tools/copy-group',
+    component: CopyGroup,
     requiresConnection: true,
     writesToAdo: true,
   },

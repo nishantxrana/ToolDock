@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeftRight, Diff, Download, Loader2, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowLeftRight, Diff, Download, ListPlus, Loader2, X } from 'lucide-react';
 import { PageLayout } from '@/components/common/PageLayout';
 import { SearchBox } from '@/components/common/SearchBox';
 import { ErrorBanner } from '@/components/common/ErrorBanner';
@@ -383,6 +384,30 @@ export function VariableGroupDiff() {
                   {s.hint}
                 </LegendItem>
               ))}
+              {(result.counts.leftOnly > 0 || result.counts.rightOnly > 0) && (
+                <span className="ml-auto flex flex-wrap items-center gap-2">
+                  {result.counts.leftOnly > 0 && (
+                    <Button asChild variant="outline" size="xs">
+                      <Link
+                        to={`/tools/copy-missing-keys?from=${leftGroup.id}&to=${rightGroup.id}`}
+                      >
+                        <ListPlus />
+                        Copy {result.counts.leftOnly} missing into B
+                      </Link>
+                    </Button>
+                  )}
+                  {result.counts.rightOnly > 0 && (
+                    <Button asChild variant="outline" size="xs">
+                      <Link
+                        to={`/tools/copy-missing-keys?from=${rightGroup.id}&to=${leftGroup.id}`}
+                      >
+                        <ListPlus />
+                        Copy {result.counts.rightOnly} missing into A
+                      </Link>
+                    </Button>
+                  )}
+                </span>
+              )}
             </div>
           </div>
         )}

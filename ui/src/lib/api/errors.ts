@@ -6,6 +6,7 @@ export type AdoErrorKind =
   | 'rate-limit' // 429
   | 'network' // offline / DNS / proxy unreachable
   | 'non-json' // got HTML (usually a sign-in redirect / wrong org)
+  | 'rejected' // 400 / 409 - request was understood but refused (e.g. duplicate name)
   | 'unknown';
 
 export class AdoError extends Error {
@@ -37,9 +38,17 @@ export function errorFromStatus(
   status: number,
   retryAfter?: number,
   context: AdoErrorContext = 'read',
+  serverMessage?: string,
 ): AdoError {
   const isWrite = context === 'write';
   switch (status) {
+    case 400:
+    case 409:
+      return new AdoError(
+        'rejected',
+        serverMessage ?? `Azure DevOps rejected the request (HTTP ${status}).`,
+        status,
+      );
     case 401:
       return new AdoError(
         'unauthorized',
@@ -96,6 +105,8 @@ export function errorTitle(err: unknown): string {
         return 'Network error';
       case 'non-json':
         return 'Unexpected response';
+      case 'rejected':
+        return 'Azure DevOps rejected the change';
       default:
         return 'Something went wrong';
     }

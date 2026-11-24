@@ -78,3 +78,79 @@ export async function updateVariableGroupVariables(
     },
   );
 }
+
+/** Body for POST .../variablegroups (create). */
+export interface VariableGroupCreateBody {
+  name: string;
+  description: string;
+  type: 'Vsts';
+  variables: VariableMap;
+  variableGroupProjectReferences: {
+    name: string;
+    description: string;
+    projectReference: { id: string; name: string };
+  }[];
+}
+
+/**
+ * Create a variable group in a project. Org-scoped endpoint; the target project
+ * comes from variableGroupProjectReferences.
+ * POST /{org}/_apis/distributedtask/variablegroups?api-version=7.2-preview.2
+ */
+export async function createVariableGroup(
+  organization: string,
+  body: VariableGroupCreateBody,
+): Promise<VariableGroup> {
+  return adoRequest<VariableGroup>([organization, '_apis', 'distributedtask', 'variablegroups'], {
+    method: 'POST',
+    query: { 'api-version': API_VERSION_VARIABLE_GROUPS },
+    body,
+    errorContext: 'write',
+  });
+}
+
+/**
+ * Add variables to a group without touching anything already in it. The group
+ * is re-read right before the write, so edits made elsewhere since the page
+ * loaded are kept, and a key that now exists (compared case-insensitively) is
+ * skipped rather than overwritten. Existing secrets are sent back with their
+ * value as returned (null), which tells Azure DevOps to keep the stored value.
+ */
+export async function addVariablesToGroup(
+  organization: string,
+  project: string,
+  groupId: number,
+  additions: VariableMap,
+): Promise<{ group: VariableGroup; added: string[]; skipped: string[] }> {
+  const current = await getVariableGroup(organization, project, groupId);
+  const existing = new Set(Object.keys(current.variables ?? {}).map((k) => k.toLowerCase()));
+  const next: VariableMap = { ...current.variables };
+  const added: string[] = [];
+  const skipped: string[] = [];
+  for (const [key, v] of Object.entries(additions)) {
+    if (existing.has(key.toLowerCase())) skipped.push(key);
+    else {
+      next[key] = v;
+      added.push(key);
+    }
+  }
+  if (added.length === 0) return { group: current, added, skipped };
+
+  const body: VariableGroupUpdateBody = {
+    name: current.name,
+    description: current.description ?? '',
+    type: current.type,
+    variables: next,
+    variableGroupProjectReferences: current.variableGroupProjectReferences ?? [],
+  };
+  const group = await adoRequest<VariableGroup>(
+    [organization, '_apis', 'distributedtask', 'variablegroups', String(groupId)],
+    {
+      method: 'PUT',
+      query: { 'api-version': API_VERSION_VARIABLE_GROUPS },
+      body,
+      errorContext: 'write',
+    },
+  );
+  return { group, added, skipped };
+}

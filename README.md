@@ -4,7 +4,7 @@
 
 # ToolDock
 
-**ToolDock is a browser-only toolkit for Azure DevOps engineers who manage variable groups, App Service settings, and release pipeline variables - eleven focused tools instead of the portal plus a spreadsheet plus copy-paste.**
+**ToolDock is a browser-only toolkit for Azure DevOps engineers who manage variable groups, App Service settings, and release pipeline variables - fourteen focused tools instead of the portal plus a spreadsheet plus copy-paste.**
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)
@@ -26,23 +26,30 @@ flowchart LR
 
 ## Features
 
-| Tool                              | What it does                                                                                                                            | Needs connection |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| **Generate App Service Settings** | Builds the `-KEY "$(KEY)"` argument string from a variable group's variable names, one line or multiline                                | Yes              |
-| **Compare vs App Settings**       | Diffs a variable group against pasted App Settings - matched / missing / extra / duplicate buckets, searchable, with a text report      | Yes              |
-| **Variable Group Diff**           | Compares two variable groups key by key - changed, missing, and secret values highlighted; exports to XLSX with color-coded rows        | Yes              |
-| **Multi-Group Compare**           | Compares 2–8 groups side by side in a pivot table - conflicts and missing keys surface across all environments at once; exports to XLSX | Yes              |
-| **CSV Import**                    | Imports `Key,Value` rows into a variable group; shows a full per-key overwrite/new/same plan and requires confirmation before writing   | Yes              |
-| **Export Variable Group**         | Exports one group as CSV, JSON, TXT, or XLSX; JSON matches the Azure DevOps variables shape                                             | Yes              |
-| **Export All Variable Groups**    | Exports selected groups into one multi-sheet XLSX workbook, one sheet per group                                                         | Yes              |
-| **Export Release Variables**      | Exports a release pipeline's inline variables - definition-level or a single stage - as CSV, JSON, TXT, or XLSX                         | Yes              |
-| **Release Pipeline Mapping**      | Shows which release pipelines and stages consume each variable group; exports the full cross-reference to XLSX                          | Yes              |
-| **Duplicate Finder**              | Finds duplicate keys in pasted App Settings, with line numbers and source highlighted                                                   | No               |
-| **Sort App Settings**             | Sorts pasted App Settings alphabetically, preserving formatting                                                                         | No               |
+| Tool                              | What it does                                                                                                                                | Needs connection | Writes |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------ |
+| **Variable Search**               | Finds a key or value across every variable group in the project, with highlighted matches; exports results to CSV                           | Yes              |        |
+| **Generate App Service Settings** | Builds the `-KEY "$(KEY)"` argument string from one or more variable groups, one line or one per line                                       | Yes              |        |
+| **Compare vs App Settings**       | Diffs variable groups against pasted App Settings - matched / missing / extra / duplicate buckets, searchable, with a TXT or CSV report     | Yes              |        |
+| **Variable Group Diff**           | Compares two variable groups key by key - changed, missing, and secret values marked; exports to XLSX; links to Copy Missing Keys           | Yes              |        |
+| **Multi-Group Compare**           | Compares 2–8 groups side by side - conflicts and missing keys surface across all environments at once; exports to XLSX                      | Yes              |        |
+| **Copy Missing Keys**             | Adds the keys one group has and another lacks, after a per-key review; never changes existing variables; secrets can be added empty         | Yes              | Yes    |
+| **CSV Import**                    | Imports `Key,Value` rows into a variable group; shows a full per-key overwrite/new/same plan and requires confirmation before writing       | Yes              | Yes    |
+| **Copy Group to Project**         | Creates a copy of a variable group in another project (or this one under a new name); secrets are added empty or left out                   | Yes              | Yes    |
+| **Export Variable Group**         | Exports one group as CSV, JSON, TXT, or XLSX; JSON matches the Azure DevOps variables shape                                                 | Yes              |        |
+| **Export All Variable Groups**    | Exports selected groups into one multi-sheet XLSX workbook, one sheet per group                                                             | Yes              |        |
+| **Export Release Variables**      | Exports a release pipeline's inline variables - definition-level or a single stage - as CSV, JSON, TXT, or XLSX                             | Yes              |        |
+| **Release Pipeline Mapping**      | Shows which release pipelines and stages consume each variable group; exports the full cross-reference to XLSX                              | Yes              |        |
+| **Duplicate Finder**              | Finds duplicate keys in pasted App Settings, with line numbers and source highlighted                                                       | No               |        |
+| **Sort App Settings**             | Sorts pasted App Settings alphabetically, with duplicates removed                                                                           | No               |        |
 
-CSV Import is the only tool that writes to Azure DevOps. Everything else reads.
+Three tools write to Azure DevOps: Copy Missing Keys, CSV Import, and Copy Group to Project. Each shows exactly what will change and asks for confirmation first. Everything else reads.
 
-All XLSX exports use a consistent style: navy header rows, color-coded data rows per status, and `[secret]` / `[empty]` placeholders in gray italic for values that cannot be shown.
+Secret values can't be read from Azure DevOps, so exports keep secret, empty, and missing apart everywhere:
+
+- **XLSX:** `[secret]`, `[empty]`, and `[not set]` placeholders in gray italic, with navy header rows and color-coded status rows.
+- **CSV:** a `Secret` column (`yes`) is added when a group has secrets; their values are left blank. CSV Import skips such rows so re-importing an export never wipes a real secret.
+- **TXT:** secrets are written as commented-out lines; **JSON:** `"isSecret": true`.
 
 ## Quick start
 
@@ -58,11 +65,11 @@ PAT scopes required (Azure DevOps → User settings → Personal access tokens):
 
 | Scope                                    | Why                                                | Required |
 | ---------------------------------------- | -------------------------------------------------- | -------- |
-| Variable Groups → Read, create, & manage | Read variable groups; write changes via CSV Import | Yes      |
+| Variable Groups → Read, create, & manage | Read variable groups; needed to write with Copy Missing Keys, CSV Import and Copy Group to Project | Yes      |
 | Project and Team → Read                  | List projects in your organization                 | Yes      |
 | Release → Read                           | Read release pipeline definitions                  | Optional |
 
-Grant the Release scope only if you use the two Release Pipelines tools. A read-only PAT covers nine of the eleven tools.
+Grant the Release scope only if you use the two Release Pipelines tools. A read-only Variable Groups scope covers eleven of the fourteen tools; the three that write need Read, create, & manage.
 
 ## How it works
 
@@ -93,7 +100,7 @@ Key limitations of the vault:
 Proxy notes:
 
 - `Authorization: Basic` is encoding, not encryption. Verify that your deployment's access logs and WAF rules do not capture request headers - [nginx.conf.example](ui/nginx.conf.example) calls this out inline.
-- The proxy paths (`/ado/*`, `/vsrm/*`) are protected by [Vercel Edge Middleware](ui/middleware.ts): only `GET` and `PUT` requests are forwarded, and requests whose `Origin` or `Referer` header does not match the app's domain are rejected with `403`. Set the `ALLOWED_ORIGIN` environment variable in your Vercel dashboard to your live domain (e.g. `https://tooldock.notbatman.me`) to activate the origin check - without it the check is skipped (safe for local dev). `VERCEL_URL` (injected automatically by Vercel) additionally covers the `.vercel.app` deployment URL so both domains work without extra config.
+- The proxy paths (`/ado/*`, `/vsrm/*`) are protected by [Vercel Edge Middleware](ui/middleware.ts): only `GET` and `PUT` requests are forwarded, plus `POST` to exactly one path (`/ado/{org}/_apis/distributedtask/variablegroups`, used by Copy Group to Project to create a group), and requests whose `Origin` or `Referer` header does not match the app's domain are rejected with `403`. Set the `ALLOWED_ORIGIN` environment variable in your Vercel dashboard to your live domain (e.g. `https://tooldock.notbatman.me`) to activate the origin check - without it the check is skipped (safe for local dev). `VERCEL_URL` (injected automatically by Vercel) additionally covers the `.vercel.app` deployment URL so both domains work without extra config.
 - The proxy still forwards any valid PAT supplied by the caller. HTTPS-only deployment and keeping the domain off shared infrastructure remain important.
 
 ## Scripts
@@ -108,6 +115,8 @@ Run from `ui/`:
 | `npm run typecheck` | `tsc --noEmit`                                         |
 | `npm run lint`      | ESLint with `--max-warnings 0`                         |
 | `npm run format`    | Prettier on `src/**/*.{ts,tsx,css}`                    |
+| `npm test`          | Vitest unit tests (search, copy logic, exports, proxy) |
+| `npm run contrast`  | Checks theme text contrast (WCAG 2 + APCA)             |
 
 ## Deploy
 
@@ -138,7 +147,7 @@ Organization and PAT are entered in the UI at runtime - no other env vars needed
 | UI               | React 18, TypeScript 5 (strict), Vite 6                                                          |
 | Routing and data | React Router 6, TanStack Query 5                                                                 |
 | State            | Zustand 5 (in-memory); optional AES-GCM vault in IndexedDB                                       |
-| Styling          | Tailwind CSS 3, shadcn/ui (Radix primitives), Lucide icons, Sonner                               |
+| Styling          | Tailwind CSS 3 with a token-based design system (Graphite), Radix primitives, Lucide, Sonner      |
 | Spreadsheets     | ExcelJS (browser bundle via Vite alias) - full cell styling: fills, fonts, borders, merged cells |
 
 ## Project structure
